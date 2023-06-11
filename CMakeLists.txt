@@ -18,6 +18,7 @@ ADD_EXPORTABLE_LIBRARY(airreplay_proto
 
 set(AIRREPLAY_SRCS
   airreplay.cc
+  external_replayer.cc
 )
 add_library(airreplay ${AIRREPLAY_SRCS})
 # target_link_libraries(consensus)

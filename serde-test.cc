@@ -39,6 +39,8 @@ TEST_F(MyTest, Serialization) {
 
     airr->rr("request1", request1);
     airr->rr("request2", request2);
+    // todo:: add destructors
+
   }
   {
     auto airr = new airreplay::Airreplay("class_trace" + std::to_string(4444),

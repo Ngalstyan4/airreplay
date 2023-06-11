@@ -63,11 +63,17 @@ class MockSystemNode {
   void DispatchAsyncPingPong(const PingPongRequest &request,
                              std::function<void(PingPongResponse *)> callback) {
     callback_ = callback;
+
+    std::cerr << "set callback function to be "
+              << reinterpret_cast<void *>(&callback_) << std::endl;
     PingPongResponse response;
-    isRecorded_ && airr->rr("I am async requesting", request, response,
-                            [this](google::protobuf::Message &resp) {
-                              callback_(static_cast<PingPongResponse *>(&resp));
-                            });
+    isRecorded_ &&
+        airr->rr("I am async requesting", request, response,
+                 [this](google::protobuf::Message &resp) {
+                   std::cerr << " in rr callback calling callback with "
+                             << resp.DebugString() << std::endl;
+                   this->CallCallback(static_cast<PingPongResponse *>(&resp));
+                 });
     // todo:: find a way to call the callback in replay
     if (!airr->isReplay()) {
       neighbors_[0].lock()->AsyncPingPong(request);
@@ -77,10 +83,17 @@ class MockSystemNode {
   std::function<void(PingPongResponse *)> callback_;
 
   void CallCallback(PingPongResponse *response) {
+    assert(response != nullptr && "response passed to CallCallback is null");
+    std::cerr << "Callcallback calling callback with "
+              << response->DebugString() << " " << std::endl;
+
     isRecorded_ && airr->rr("I was async responded with", *response);
-    if (!airr->isReplay()) {
-      callback_(response);
-    }
+    assert(callback_ != nullptr && "callback_ is null");
+    std::cerr << " callback function is" << reinterpret_cast<void *>(&callback_)
+              << std::endl;
+    callback_(response);
+    std::cerr << "DONE Callcallback calling callback with "
+              << response->DebugString() << " " << std::endl;
   }
 };
 
@@ -117,6 +130,8 @@ class PingPongTest : public ::testing::Test {
     node1_->DispatchPingPong(request, &response);
     history.push_back({request, response});
     node1_->DispatchAsyncPingPong(request, [&](PingPongResponse *response) {
+      std::cerr << "in Dispactch async ping pong callback "
+                << response->DebugString() << std::endl;
       history.push_back({request, *response});
     });
   }
@@ -162,7 +177,9 @@ TEST_F(PingPongTest, testCase) {
   };
   airr->setReplayHooks(hooks);
 
-  std::cerr << "replaying";
+  EXPECT_EQ(airr->getTrace().size(), 8)
+      << "Some events at the tail did not replay properly";
+  std::cerr << "replaying" << std::endl;
   RunNode1(rep_history1);
 
   EXPECT_EQ(rec_history1.size(), rep_history1.size());
@@ -172,5 +189,7 @@ TEST_F(PingPongTest, testCase) {
     EXPECT_EQ(rec_history1[i].response.DebugString(),
               rep_history1[i].response.DebugString());
   }
+  EXPECT_EQ(airr->getTrace().size(), 0)
+      << "Some events at the tail did not replay properly";
   delete airreplay::airr;
 }

@@ -6,7 +6,9 @@
 #include <fstream>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <thread>
 
 #include "airreplay/airreplay.pb.h"
 namespace kudu {
@@ -46,7 +48,10 @@ class Airreplay {
   // serializes access to traceEvents_ between externalReplayerThread and
   // application calls to airr
   std::mutex traceLock_;
-  std::condition_variable traceCond_;
+  // used to notify external event replayer thread that a request was consumed
+  // from the trace and there potnentially are external events to re-deliver to
+  // the application
+  //   std::condition_variable traceCond_;
   std::map<int, std::function<void(const google::protobuf::Message &msg)> >
       hooks_;
 
@@ -64,6 +69,7 @@ class Airreplay {
   // same as the static interface below but allows for multiple independent
   // recordings in the same app used for testing mainly
   Airreplay(std::string tracename, Mode mode);
+  ~Airreplay();
 
   std::string txttracename();
   std::string tracename();
@@ -85,7 +91,7 @@ class Airreplay {
                           const google::protobuf::Message &request,
                           std::shared_ptr<kudu::rpc::OutboundCall> call);
 
-  void replayerThread();
+  void externalReplayerLoop();
 };
 extern Airreplay *airr;
 
