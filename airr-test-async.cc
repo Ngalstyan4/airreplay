@@ -6,7 +6,6 @@
 #include "airreplay/airreplay.h"
 #include "airreplay/airreplay.pb.h"
 
-using airreplay::airr;
 using airreplay::PingPongRequest;
 using airreplay::PingPongResponse;
 enum RPCKind {
@@ -29,10 +28,20 @@ class MockAsyncSystemNode {
   std::condition_variable callbackCV_;
 
  public:
-  MockAsyncSystemNode(std::string name, bool isRecorded = false)
-      : name_(name), isRecorded_(isRecorded) {
-    callbackServicer_ = std::thread([&]() {
+  MockAsyncSystemNode(std::string name) : MockAsyncSystemNode(name, nullptr) {}
+  MockAsyncSystemNode(std::string name,
+                      std::unique_ptr<airreplay::Airreplay> airr)
+      : name_(name), airr_(std::move(airr)) {
+    if (airr_) {
+      isRecorded_ = true;
+    } else {
+      isRecorded_ = false;
+    }
+    callbackServicer_ = std::thread([this]() {
       while (true) {
+        // this has a pointer to the created thread and has to join it before it
+        // can be destroyed so this invariant is enforced
+        assert(this != nullptr);
         try {
           std::cerr << "callback servicer for " << name_ << " waiting\n";
           std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -57,6 +66,14 @@ class MockAsyncSystemNode {
     });
   }
 
+  std::unique_ptr<airreplay::Airreplay> airr_;
+  void RR(const std::string &method, const google::protobuf::Message &request,
+          int kind = 0) {
+    if (isRecorded_) {
+      airr_->rr(method, request, kind);
+    }
+  }
+
   void waitAsyncs() {
     std::cerr << "waiting for asyncs to finish\n";
     {
@@ -71,10 +88,8 @@ class MockAsyncSystemNode {
   }
 
   // RPCs
-
   void AsyncPingPong(const PingPongRequest &request) {
-    isRecorded_ && airr->rr("I was called with(async)", request,
-                            RPCKind::INCOMING_ASYNC_PINGGONG);
+    RR("I was called with(async)", request, RPCKind::INCOMING_ASYNC_PINGGONG);
 
     PingPongRequest req_copy = request;
 
@@ -83,10 +98,10 @@ class MockAsyncSystemNode {
       assert(this != nullptr);
       // request below captured by value from the caller
       response.set_message("Pong++" + req_copy.message());
-      if (!airr->isReplay()) {
+      if (!(airr_ && airr_->isReplay())) {
         neighbors_[0].lock()->CallCallback(&response);
       }
-      isRecorded_ && airr->rr("I responded with(callback)", response);
+      RR("I responded with(callback)", response);
     };
     std::lock_guard lock(callbackMutex_);
     callbacks_.push_back(clbck);
@@ -94,12 +109,17 @@ class MockAsyncSystemNode {
 
   void DispatchAsyncPingPong(const PingPongRequest &request,
                              std::function<void(PingPongResponse *)> callback) {
+    // the following is the reason the mock does not support multiple
+    // outstanding requests at a time. Callback is associated with the node and
+    // not with this particular RPC invocation. fwiw, kudu has similar design
+    // but there callback is associated with channel so the limitation is one
+    // callback per neighbor not one globally
     callback_ = callback;
 
     PingPongResponse response;
-    isRecorded_ && airr->rr("I am async requesting", request);
+    RR("I am async requesting", request);
     // todo:: find a way to call the callback in replay
-    if (!airr->isReplay()) {
+    if (!(airr_ && airr_->isReplay())) {
       neighbors_[0].lock()->AsyncPingPong(request);
     }
   }
@@ -109,8 +129,7 @@ class MockAsyncSystemNode {
     std::cerr << "Callcallback calling callback with "
               << response->DebugString() << " " << std::endl;
 
-    isRecorded_ && airr->rr("I was async responded with", *response,
-                            RPCKind::kIncomingCallback);
+    RR("I was async responded with", *response, RPCKind::kIncomingCallback);
     assert(callback_ != nullptr && "callback_ is null");
     callback_(response);
     callback_ = nullptr;
@@ -135,9 +154,13 @@ class PingPongTestAsync : public ::testing::Test {
  protected:
   std::shared_ptr<MockAsyncSystemNode> node1_;
   std::shared_ptr<MockAsyncSystemNode> node2_;
+
+  std::string trace_fname_ = "class_trace_async" + std::to_string(4444);
   // Set up the test environment
   void SetUp() override {
-    node1_ = std::make_shared<MockAsyncSystemNode>("node1", true);
+    auto airr = std::make_unique<airreplay::Airreplay>(trace_fname_,
+                                                       airreplay::kRecord);
+    node1_ = std::make_shared<MockAsyncSystemNode>("node1", std::move(airr));
     node2_ = std::make_shared<MockAsyncSystemNode>("node2");
     node1_->addNeighbor(node2_);
     node2_->addNeighbor(node1_);
@@ -193,8 +216,6 @@ class PingPongTestAsync : public ::testing::Test {
 // Test case for the ping-pong RPC call
 TEST_F(PingPongTestAsync, testCaseAsync) {
   std::cerr << "starting async test\n";
-  auto trace_fname = "class_trace_async" + std::to_string(4444);
-  airreplay::airr = new airreplay::Airreplay(trace_fname, airreplay::kRecord);
   std::vector<ReqResPair> rec_history1, rec_history2;
   std::vector<ReqResPair> rep_history1;
   RunNode1(rec_history1);
@@ -205,9 +226,9 @@ TEST_F(PingPongTestAsync, testCaseAsync) {
   node2_.reset();
   EXPECT_TRUE(node2_ == nullptr);
 
-  delete airreplay::airr;
-  airreplay::airr = new airreplay::Airreplay(trace_fname, airreplay::kReplay);
-  EXPECT_EQ(airr->getTraceForTest().size(), 8)
+  node1_->airr_ =
+      std::make_unique<airreplay::Airreplay>(trace_fname_, airreplay::kReplay);
+  EXPECT_EQ(node1_->airr_->getTraceForTest().size(), 8)
       << "Hm.. wrong number of recorded events at start of replay";
   // set up replay hooks
   std::map<int, std::function<void(const google::protobuf::Message &)> > hooks;
@@ -226,7 +247,7 @@ TEST_F(PingPongTestAsync, testCaseAsync) {
                   << resp.DebugString() << std::endl;
         node1_->CallCallback(static_cast<PingPongResponse *>(&resp));
       };
-  airr->setReplayHooks(hooks);
+  node1_->airr_->setReplayHooks(hooks);
 
   std::cerr << "replaying" << std::endl;
   RunNode1(rep_history1);
@@ -241,10 +262,10 @@ TEST_F(PingPongTestAsync, testCaseAsync) {
   }
 
   // print trace elements
-  for (auto &e : airr->getTraceForTest()) {
+  for (auto &e : node1_->airr_->getTraceForTest()) {
     std::cerr << e.DebugString() << std::endl;
   }
-  EXPECT_EQ(airr->getTraceForTest().size(), 0)
+  EXPECT_EQ(node1_->airr_->getTraceForTest().size(), 0)
       << "Some events at the tail did not replay properly";
 
   delete airreplay::airr;
