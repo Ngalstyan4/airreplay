@@ -18,9 +18,8 @@ Airreplay::Airreplay(std::string tracename, Mode mode) {
   txttracename_ = txtname;
   tracename_ = tracename;
 
-  // in record mode, delete the files if they exist. so the following 2 lines
-  // create new files
-  if (mode == Mode::RECORD) {
+  // in record mode, we delete the files with tracename if they already exist.
+  if (mode == Mode::kRecord) {
     std::remove(txttracename_.c_str());
     std::remove(tracename_.c_str());
   }
@@ -30,7 +29,7 @@ Airreplay::Airreplay(std::string tracename, Mode mode) {
   tracebin = new std::fstream(tracename_.c_str(),
                               std::ios::in | std::ios::out | std::ios::app);
 
-  if (RRmode_ == Mode::REPLAY) {
+  if (RRmode_ == Mode::kReplay) {
     tracebin->seekg(0, std::ios::beg);
 
     ssize_t nread;
@@ -61,22 +60,22 @@ Airreplay::Airreplay(std::string tracename, Mode mode) {
     }
   }
 
-  externalReplayerThread_ = std::thread(&Airreplay::externalReplayerLoop, this);
+//   externalReplayerThread_ = std::thread(&Airreplay::externalReplayerLoop, this);
 }
 
 Airreplay::~Airreplay() {
-  if (externalReplayerThread_.joinable()) {
-    externalReplayerThread_.join();
-  }
+//   if (externalReplayerThread_.joinable()) {
+//     externalReplayerThread_.join();
+//   }
   tracetxt->close();
   tracebin->close();
 }
 
-std::deque<airreplay::OpequeEntry> Airreplay::getTrace() {
+std::deque<airreplay::OpequeEntry> Airreplay::getTraceForTest() {
   return traceEvents_;
 }
 
-bool Airreplay::isReplay() { return RRmode_ == Mode::REPLAY; }
+bool Airreplay::isReplay() { return RRmode_ == Mode::kReplay; }
 
 std::string Airreplay::txttracename() { return txttracename_; }
 
@@ -88,7 +87,8 @@ void Airreplay::setReplayHooks(
   hooks_ = hooks;
 }
 
-void Airreplay::airr_record(const std::string &debugstring,
+// implements recording side of rr
+void Airreplay::doRecord(const std::string &debugstring,
                             const google::protobuf::Message &request,
                             int kind) {
   // trace.push_back(any.ShortDebugString());
@@ -116,12 +116,9 @@ void Airreplay::airr_record(const std::string &debugstring,
 }
 
 bool Airreplay::rr(const std::string &method,
-                   const google::protobuf::Message &request,
-                   google::protobuf::Message &response,
-                   std::function<void(google::protobuf::Message &)> callback,
-                   int kind) {
-  if (RRmode_ == Mode::RECORD) {
-    airr_record(method, request, kind);
+                   const google::protobuf::Message &request, int kind) {
+  if (RRmode_ == Mode::kRecord) {
+    doRecord(method, request, kind);
   } else {
     assert(!traceEvents_.empty());
     airreplay::OpequeEntry req = traceEvents_[0];
@@ -129,66 +126,14 @@ bool Airreplay::rr(const std::string &method,
       throw std::runtime_error("async replay diverged");
     }
     traceEvents_.pop_front();
-    assert(!traceEvents_.empty());
-    req = traceEvents_[0];
 
-    auto ok = req.message().UnpackTo(&response);
-    assert(ok);
-    // traceEvents_.pop_front(); <<-- do not pop response. callback will get
-    // back here
-
-    if (callback != nullptr) {
-      std::cerr << "calling callback with " << response.DebugString()
-                << std::endl;
-      callback(response);
-    }
-
+    // replay external RPCs
     if (traceEvents_.size() > 0) {
       req = traceEvents_[0];
-      std::cerr << "there are " << hooks_.size() << " hooks" << std::endl
-                << req.kind() << " " << hooks_.begin()->first << std::endl;
       if (hooks_.find(req.kind()) != hooks_.end()) {
-        std::cerr << "calling hook for " << req.DebugString() << std::endl;
-        hooks_[req.kind()](req.message());
-      }
-    }
-  }
-  return true;
-}
-
-bool Airreplay::rr(const std::string &debugstring,
-                   const google::protobuf::Message &request,
-                   google::protobuf::Message *response, int kind) {
-  if (RRmode_ == Mode::RECORD) {
-    airr_record(debugstring, request, kind);
-
-  } else {
-    assert(traceEvents_.size() > 0);
-
-    airreplay::OpequeEntry req = traceEvents_[0];
-    if (req.message().value() != request.SerializeAsString()) {
-      throw std::runtime_error("replay diverged");
-    }
-    traceEvents_.pop_front();
-    // assert(!traceEvents_.empty());
-    if (traceEvents_.empty()) {
-      return true;  // currently this is called with responses as well.. in
-                    // which case there is no response-repsonse}
-    }
-    req = traceEvents_[0];
-    if (response != nullptr) {
-      bool ok = req.message().UnpackTo(response);
-      assert(ok);
-      traceEvents_.pop_front();
-    }
-
-    // assert(!traceEvents_.empty());
-    if (!traceEvents_.empty()) {
-      req = traceEvents_[0];
-      std::cerr << "there are " << hooks_.size() << " hooks" << std::endl
-                << req.kind() << " " << hooks_.begin()->first << std::endl;
-      if (hooks_.find(req.kind()) != hooks_.end()) {
-        std::cerr << "calling hook for " << req.DebugString() << std::endl;
+        // q:: does this make horriffic stack traces?
+        // if I have 15 incoming calls one after another, this will add 30
+        // frames (15*(rr, hooks[kind])) calls to the stack
         hooks_[req.kind()](req.message());
       }
     }
@@ -200,7 +145,7 @@ void Airreplay::recordOutboundCall(
     const std::string &debugstring, const google::protobuf::Message &request,
     std::shared_ptr<kudu::rpc::OutboundCall> call) {
   rr(debugstring, request);
-  if (RRmode_ == Mode::REPLAY) {
+  if (RRmode_ == Mode::kReplay) {
     // todo:: consider call->call_id() as key
     outstandingCalls_[request.ShortDebugString()] = call;
     // ^^ the replayer loop will be a thread here that will monitor

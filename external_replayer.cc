@@ -3,8 +3,9 @@
 namespace airreplay {
 
 void Airreplay::externalReplayerLoop() {
+  throw std::runtime_error("not implemented");
   while (true) {
-    std::lock_guard lock(traceLock_);
+    // std::lock_guard lock(traceLock_);
     if (traceEvents_.empty()) {
       return;
     }

@@ -26,10 +26,10 @@ TEST_F(MyTest, Serialization) {
   request2.set_message("tablet2");
   request2.set_cnt(44);
   request2.set_info("info1");
-  // airreplay::init(4444, airreplay::Mode::RECORD);
+  // airreplay::init(4444, airreplay::Mode::kRecord);
   {
     auto airr = new airreplay::Airreplay("class_trace" + std::to_string(4444),
-                                         airreplay::Mode::RECORD);
+                                         airreplay::Mode::kRecord);
     std::ifstream ifstxt(airr->txttracename(), std::ios::in);
     std::ifstream ifsbin(airr->tracename(), std::ios::in);
 
@@ -44,11 +44,11 @@ TEST_F(MyTest, Serialization) {
   }
   {
     auto airr = new airreplay::Airreplay("class_trace" + std::to_string(4444),
-                                         airreplay::Mode::REPLAY);
+                                         airreplay::Mode::kReplay);
 
-    // airreplay::init(4444, airreplay::Mode::REPLAY);
+    // airreplay::init(4444, airreplay::Mode::kReplay);
     EXPECT_TRUE(airr->isReplay());
-    auto trace = airr->getTrace();
+    auto trace = airr->getTraceForTest();
     EXPECT_EQ(trace.size(), 2);
     EXPECT_TRUE(trace[0].message().Is<airreplay::TestMessagePB>());
     EXPECT_TRUE(trace[1].message().Is<airreplay::TestMessage2PB>());

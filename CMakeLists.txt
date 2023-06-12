@@ -45,7 +45,7 @@ gflags)
 #     COMMAND bash "-c" "protoc --plugin=protoc-gen-cpp-grpc=/home/narek/grpc_install/LIB_INSTALLED/bin/grpc_cpp_plugin  --proto_path=../../src/airreplay/ --cpp-grpc_out=./src/airreplay ../../src/airreplay/airreplay.proto"
 # )
 # . rpc-test.cc
-add_executable(airr-test airr-test.cc gtest_main.cc ${PERSISTENT_VARS_PROTO_SRCS})
+add_executable(airr-test airr-test.cc airr-test-async.cc  gtest_main.cc ${PERSISTENT_VARS_PROTO_SRCS})
 target_include_directories(airr-test PUBLIC .)
 target_link_libraries(airr-test
 airreplay
