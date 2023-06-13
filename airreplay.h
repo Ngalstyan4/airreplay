@@ -2,6 +2,7 @@
 #define AIRREPLAY_H
 #include <google/protobuf/any.pb.h>
 
+#include <boost/function.hpp>  // AsyncRequest uses boost::function
 #include <deque>
 #include <fstream>
 #include <functional>
@@ -11,6 +12,7 @@
 #include <thread>
 
 #include "airreplay/airreplay.pb.h"
+#include "kudu/rpc/rpc_controller.h"
 namespace kudu {
 namespace rpc {
 class OutboundCall;
@@ -19,6 +21,7 @@ class OutboundCall;
 
 namespace airreplay {
 enum Mode { kRecord, kReplay };
+// todo:: drop const or even support moving later if need be
 using HookFunction = std::function<void(const google::protobuf::Message &msg)>;
 
 class Airreplay {
@@ -30,19 +33,30 @@ class Airreplay {
 
   Mode RRmode_;
 
+  // mutex and vars protected by it
+  std::mutex recordOrder_;
+  int recordIndex_ = 0;
+  std::map<int, std::function<void()> > pendingCallbacks_;
+  // partially parsed(proto::Any) trace events for replay
+  std::deque<airreplay::OpequeEntry> traceEvents_;
+
   // ****************** below are only used in replay ******************
 
   std::map<int, HookFunction> hooks_;
 
-  // partially parsed(proto::Any) trace events for replay
-  std::deque<airreplay::OpequeEntry> traceEvents_;
+  std::function<void()> kUnreachableCallback_{[]() {
+    assert(false);
+    std::runtime_error("must have been unreachable");
+  }};
 
-  // outstanding Outbound calls
-  std::map<std::string, std::shared_ptr<kudu::rpc::OutboundCall> >
-      outstandingCalls_;
-
-  void doRecord(const std::string &debugstring,
-                   const google::protobuf::Message &request, int kind);
+  void MaybeReplayExternalRPC(google::protobuf::Message *response = nullptr);
+  // Records the passed message to disk.
+  // does not take any locks and assumes all necessary synchronization is done
+  // by the caller reutrns the intex of the record on trace
+  int doRecord(const std::string &debugstring,
+               const google::protobuf::Message &request, int kind,
+               int linkToken = -1);
+  void FinishRecord(int recordToken, const google::protobuf::Message *response);
 
  public:
   // same as the static interface below but allows for multiple independent
@@ -54,8 +68,12 @@ class Airreplay {
   std::string tracename();
   bool isReplay();
   std::deque<airreplay::OpequeEntry> getTraceForTest();
-  // todo:: drop const or even support moving later if need be
   void setReplayHooks(std::map<int, HookFunction> hooks);
+
+  std::function<void()> RrAsync(const std::string &method,
+                                const google::protobuf::Message &request,
+                                google::protobuf::Message *response,
+                                std::function<void()> callback);
 
   /**
    * This is the main interface applications use to integrate record/replay into
@@ -67,13 +85,11 @@ class Airreplay {
    * requests after the current one which have a "kind" such that the system
    * should reproduce them If so, rr calls appropriate reproduction functions
    * (see more in setReplayHooks)
+   *
+   * Returns the index of the recorded request (=recordToken).
    */
-  bool rr(const std::string &debuginfo,
-          const google::protobuf::Message &message, int kind = 0);
-
-  void recordOutboundCall(const std::string &method,
-                          const google::protobuf::Message &request,
-                          std::shared_ptr<kudu::rpc::OutboundCall> call);
+  int rr(const std::string &debuginfo, const google::protobuf::Message &message,
+         int kind = 0);
 
   void externalReplayerLoop();
 };

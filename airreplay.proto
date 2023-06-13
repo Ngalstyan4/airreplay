@@ -78,6 +78,8 @@ service PingPongService {
     As an alternative, this info can be inferred during replay, from application context
     */
     google.protobuf.Any message = 4; // arbitrary protobuf of app-determined opeque type Kind
+    // used to link Async responses to their requests
+    int32 link_to_token = 5;
   }
   
   message OpequeBytes {
@@ -94,4 +96,9 @@ service PingPongService {
     string primary_key = 1;
     bytes message = 2;
     bytes error = 3;
+  }
+
+  message Empty{}
+  message NonEmpty{
+    int32 life = 42;
   }

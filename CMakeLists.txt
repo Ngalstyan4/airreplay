@@ -51,6 +51,7 @@ target_link_libraries(airr-test
 airreplay
 protobuf
 airreplay_proto
+gutil # this is ofr SanityTest callback stuff
 
 # kudu built gmock which has gtest built in but it did not build gtest separately
 # so we do not have gtest and gtest main but gmock has everything we need.
