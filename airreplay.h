@@ -50,6 +50,8 @@ class Airreplay {
   }};
 
   void MaybeReplayExternalRPC(google::protobuf::Message *response = nullptr);
+  int doRecordInternal(const std::string &debugstring,
+                       const airreplay::OpequeEntry &request, int kind);
   // Records the passed message to disk.
   // does not take any locks and assumes all necessary synchronization is done
   // by the caller reutrns the intex of the record on trace
@@ -88,8 +90,19 @@ class Airreplay {
    *
    * Returns the index of the recorded request (=recordToken).
    */
-  int rr(const std::string &debuginfo, const google::protobuf::Message &message,
+  int rr(const std::string &debuginfo, google::protobuf::Message &message,
          int kind = 0);
+  static int rr(const std::string &debuginfo, const google::protobuf::Message &message,
+         int kind = 0) {
+          std::cerr << "old rr called";
+          // throw std::runtime_error("shall not be called! old relic, not fully removed yet");
+          return 0;
+         };
+
+  int rr(const std::string &debuginfo, std::string &message, int kind = 0);
+
+  // int rr(const std::string &debuginfo, int &message,
+  //        int kind = 0);
 
   void externalReplayerLoop();
 };

@@ -80,6 +80,10 @@ service PingPongService {
     google.protobuf.Any message = 4; // arbitrary protobuf of app-determined opeque type Kind
     // used to link Async responses to their requests
     int32 link_to_token = 5;
+    string str_message = 6;
+    int64  num_message = 7;
+    // change the name
+    string rr_debug_string = 8;
   }
   
   message OpequeBytes {
