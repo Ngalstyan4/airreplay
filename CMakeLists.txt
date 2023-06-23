@@ -17,8 +17,10 @@ ADD_EXPORTABLE_LIBRARY(airreplay_proto
   NONLINK_DEPS ${PERSISTENT_VARS_PROTO_TGTS})
 
 set(AIRREPLAY_SRCS
+  trace.cc
   airreplay.cc
   external_replayer.cc
+  utils.cc
 )
 add_library(airreplay ${AIRREPLAY_SRCS})
 # target_link_libraries(consensus)
