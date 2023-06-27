@@ -29,21 +29,17 @@ Airreplay::~Airreplay() {
 
 bool Airreplay::isReplay() { return rrmode_ == Mode::kReplay; }
 
-void Airreplay::setReplayHooks(
-    std::map<int, std::function<void(const google::protobuf::Message &msg)> >
-        hooks) {
-  throw std::runtime_error("not implemented");
+void Airreplay::RegisterReproducers(std::map<int, ReproducerFunction> hooks) {
   hooks_ = hooks;
 }
+
+void Airreplay::RegisterReproducer(int kind, ReproducerFunction reproducer) {}
 
 // todo:: turn this into a fency OpequeEntry constructor anc call trace_.Record
 // after calling this
 int Airreplay::doRecord(const std::string &debugstring,
                         const google::protobuf::Message &request, int kind,
                         int linkToken) {
-  if (!(kind == 42 || kind == 4242)) return 0;
-  // trace.push_back(any.ShortDebugString());
-
   airreplay::OpequeEntry header;
   header.set_kind(kind);
   header.set_link_to_token(linkToken);
@@ -59,13 +55,6 @@ int Airreplay::doRecord(const std::string &debugstring,
   return trace_.Record(header);
 }
 
-// void Proxy::AsyncRequest(
-//     const string& method,
-//     const google::protobuf::Message& req,
-//     google::protobuf::Message* response,
-//     RpcController* controller,
-//     const ResponseCallback& callback);
-
 // in recording:: save method, serialized req, response pointer and wrap
 // callback in another call and return
 // the wrapped callback(while maintaining its ownership)
@@ -77,7 +66,7 @@ int Airreplay::doRecord(const std::string &debugstring,
 //  and callback to be called when the trace reaches to the appropriate point
 // set wrapped callback to nullptr; Actual async request should not be
 // dispatched in replay so that func should never be called
-std::function<void()> Airreplay::RrAsync(
+std::function<void()> Airreplay::RROutgoingCallAsync(
     const std::string &method, const google::protobuf::Message &request,
     google::protobuf::Message *response, std::function<void()> callback) {
   // make sure that one thread gets here at a time.
@@ -98,10 +87,6 @@ std::function<void()> Airreplay::RrAsync(
           // this should be the global Airreplay object so effectively has
           // static lifetime
           assert(this != nullptr);
-          log("RrAsync", "my callback successfully called !!");
-          // todo:: call RecordReplay public interface here. RrAsync should be a
-          // mere helper wrapper around RecordReplay and hooks interface.
-          // this->FinishRecord(recordToken, response);
           callback();
         });
     return myCallback;
@@ -113,83 +98,60 @@ std::function<void()> Airreplay::RrAsync(
 
       const airreplay::OpequeEntry &req_peek = trace_.PeekNext(&pos);
       if (req_peek.kind() != 42) {
-        log("RrAsync Replay attempt", "RrAsync not replaying@" +
-                                          std::to_string(pos) +
-                                          " \nexpected kind 42 BUT_GOT\n" +
-                                          std::to_string(req_peek.kind()));
+        if (!MaybeReplayExternalRPCUnlocked(req_peek)) {
+          log("RROutgoingCallAsync Replay attempt",
+              "RROutgoingCallAsync not replaying@" + std::to_string(pos) +
+                  " \nexpected kind 42 BUT_GOT\n" +
+                  std::to_string(req_peek.kind()));
+        }
         lock.unlock();
         std::this_thread::sleep_for(std::chrono::milliseconds(400));
         continue;
       }
+
       if (req_peek.message().value() != request.SerializeAsString()) {
-        google::protobuf::Message *copy = request.New();
-        req_peek.message().UnpackTo(copy);
-        auto mismatch = utils::compareMessages(request, *copy);
+        auto mismatch =
+            utils::compareMessageWithAny(request, req_peek.message());
         assert(mismatch != "");
 
-        log("RrAsync Replay attempt",
-            "RrAsync not replaying@" + std::to_string(pos) + "\n" + mismatch);
-        // " \nexpected\n " +
-        //     req_peek.ShortDebugString() + " BUT_GOT\n" +
-        //     request.ShortDebugString());
+        log("RROutgoingCallAsync Replay attempt",
+            "RROutgoingCallAsync not replaying@" + std::to_string(pos) + "\n" +
+                mismatch);
+
         lock.unlock();
         std::this_thread::sleep_for(std::chrono::milliseconds(400));
         continue;
       }
 
-      // bool insertSuccess = pending_callbacks_.insert({pos, callback}).second;
-      // assert(insertSuccess);
-      // MaybeReplayExternalRPCUnlocked(response);
       auto running_callback = std::thread(callback);
-      // q:: does std::move do something here?
       running_callbacks_.push_back(std::move(running_callback));
       std::string s = req_peek.ShortDebugString();
       trace_.ConsumeHead(req_peek);
+      // ^^ once callbacks move to the body of RROutgoingCallAsync, turn this
+      // into softConsume
       return kUnreachableCallback_;
     }
   }
 }
 
-void Airreplay::MaybeReplayExternalRPCUnlocked(
-    google::protobuf::Message *response) {
-  // replay external RPCs
-  if (trace_.HasNext()) {
-    int pos = -1;
-    const airreplay::OpequeEntry &req = trace_.PeekNext(&pos);
+// replay external RPCs. Since Responses of outgoing RPCs are taken care of
+// by RROutgoingCallAsync, this function only handles incoming RPC calls
+bool Airreplay::MaybeReplayExternalRPCUnlocked(
+    const airreplay::OpequeEntry &req_peek) {
+  if (hooks_.find(req_peek.kind()) == hooks_.end()) return false;
 
-    if (hooks_.find(req.kind()) != hooks_.end()) {
-      // q:: does this make horriffic stack traces?
-      // if I have 15 incoming calls one after another, this will add 30
-      // frames (15*(rr, hooks[kind])) calls to the stack
-      hooks_[req.kind()](req.message());
-      // not calling ReplayNext() since rr will be called from the hook
-      // which will ReplayNext()
-    }
-
-    int tokenLink = req.link_to_token();
-    auto elem = pending_callbacks_.find(tokenLink);
-    log("ReplayExternal", "looking for tokenLink " + std::to_string(tokenLink) +
-                              "(next is " + std::to_string(trace_.pos()) +
-                              ")\n");
-    if (tokenLink != -1 && elem != pending_callbacks_.end()) {
-      auto f = elem->second;
-      log("ReplayExternal",
-          "calling callback for " + req.ShortDebugString() + "\n");
-      // unlike the hooks approach above there is no further airreplay
-      // involvement after f() is called so we are done with req and should move
-      // on <-- this will change soonz
-      int pos = -1;
-      airreplay::OpequeEntry rep = trace_.ReplayNext(&pos);
-      if (response != nullptr) {
-        rep.message().UnpackTo(response);
-      } else {
-        log("ReplayExternal", "WARNING! null response\n");
-      }
-      auto running_callback = std::thread(f);
-      // q:: does std::move do something here?
-      running_callbacks_.push_back(std::move(running_callback));
-    }
+  if (!trace_.SoftConsumeHead(req_peek)) {
+    log("MaybeReplayExternalRPCUnlocked",
+        "Warning: callback had previously been scheduled but still is on the "
+        "trace");
+    return false;
   }
+
+  auto callback = [=]() { hooks_[req_peek.kind()](req_peek.message()); };
+  auto running_callback = std::thread(callback);
+  // q:: does std::move do something here?
+  running_callbacks_.push_back(std::move(running_callback));
+  return true;
 }
 
 int Airreplay::SaveRestore(const std::string &key,
@@ -216,7 +178,6 @@ int Airreplay::SaveRestoreInternal(const std::string &key,
   if (rrmode_ == Mode::kRecord) {
     std::lock_guard lock(recordOrder_);
     if (save_restore_keys_.find(key) != save_restore_keys_.end()) {
-      log("WARN: SaveRestore", "key " + key + " already saved");
       // I cannot fail here because this is ok when two tuplicate keys
       // are not inflight concurrently. E.g., when one GetInstanceRequest fails,
       // and another one is issued against the same host/port, the keys will
@@ -224,6 +185,7 @@ int Airreplay::SaveRestoreInternal(const std::string &key,
       // to be fully replayed when the second one comes around. Would be good to
       // enforce the more subtle invariant for debugging but for now will just
       // have to remember to check for it
+      log("WARN: SaveRestore", "key " + key + " already saved");
     }
     save_restore_keys_.insert(key);
 
@@ -257,14 +219,18 @@ int Airreplay::SaveRestoreInternal(const std::string &key,
       std::unique_lock lock(recordOrder_);
 
       const airreplay::OpequeEntry &req = trace_.PeekNext(&pos);
+
       if (req.kind() != 4242 || req.rr_debug_string() != key) {
-        if (req.kind() != 4242) {
-          log("SaveRestoreInternal",
-              "not the right kind " + std::to_string(req.kind()) + " != 4242\t\tkey: " + key);
-        } else {
-          log("SaveRestoreInternal",
-              "saverestore: not the right kind or method (((((((((((" + key +
-                  ")))))))))))");
+        if (!MaybeReplayExternalRPCUnlocked(req)) {
+          if (req.kind() != 4242) {
+            log("SaveRestoreInternal@" + std::to_string(pos),
+                "not the right kind " + std::to_string(req.kind()) +
+                    " != 4242\t\tkey: " + key);
+          } else {
+            log("SaveRestoreInternal",
+                "saverestore: not the right kind or method (((((((((((" + key +
+                    ")))))))))))");
+          }
         }
         lock.unlock();
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -298,45 +264,59 @@ int Airreplay::SaveRestoreInternal(const std::string &key,
 // todo: should be used in some places of outgoing request where we currently
 // use save/restore
 int Airreplay::RecordReplay(const std::string &key,
-                            const google::protobuf::Message &message) {
-  return -1;
+                            const google::protobuf::Message &message,
+                            int kind) {
+  if (rrmode_ == Mode::kRecord) {
+    std::lock_guard lock(recordOrder_);
+
+    airreplay::OpequeEntry header;
+    if (kind == 0) {
+      kind = 3232;
+    }
+    header.set_kind(kind);
+    header.set_rr_debug_string(key);
+    // header.set_link_to_token(linkToken);
+    if (message.IsInitialized()) {
+      size_t mlen = message.ByteSizeLong();
+      header.set_body_size(mlen);
+      header.mutable_message()->PackFrom(message);
+    }
+    return trace_.Record(header);
+  } else {
+    int pos = -1;
+    while (true) {
+      std::unique_lock lock(recordOrder_);
+      const airreplay::OpequeEntry &req_peek = trace_.PeekNext(&pos);
+
+      if (req_peek.kind() != 3232 && req_peek.kind() != 32) {
+        log("RecordReplay@" + std::to_string(pos),
+            "not the right kind " + std::to_string(req_peek.kind()) +
+                " !=" + std::to_string(kind) + "\t\tkey: " + key);
+      } else if (key != req_peek.rr_debug_string()) {
+        log("RecordReplay@" + std::to_string(pos),
+            "right kind(" + std::to_string(kind) +
+                ") but not the right entry\tgot key:" + key +
+                " expected:" + req_peek.rr_debug_string());
+      } else if (req_peek.message().value() != message.SerializeAsString()) {
+        auto mismatch =
+            utils::compareMessageWithAny(message, req_peek.message());
+        assert(mismatch != "");
+        log("RecordReplay@" + std::to_string(pos),
+            "right kind and entry key. wrong proto message. " + mismatch);
+      } else {
+        assert(req_peek.kind() == 32 || req_peek.kind() == 3232);
+        assert(req_peek.message().value() == message.SerializeAsString());
+        // todo find abetter way of saying "there is no other data in
+        log("RecordReplay", "Just REPLAYED" + req_peek.ShortDebugString());
+        trace_.ConsumeHead(req_peek);
+        assert(lock.owns_lock());
+        return pos;
+      }
+
+      lock.unlock();
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      continue;
+    }
+  }
 }
-// int Airreplay::rr(const std::string &method, google::protobuf::Message
-// &request,
-//                   int kind) {
-//   if (rrmode_ == Mode::kRecord) {
-//     // make sure that one thread gets here at a time.
-//     // eventually this will be enforced structurally (given we do rr in the
-//     // right places) and have appropriate app-level locks held for now this
-//     // ensured the debug txt trace does not get corrupted when rr is called
-//     // from multiple threads.
-//     std::lock_guard lock(recordOrder_);
-//     return doRecord(method, request, kind);
-//   } else {
-//     int pos = -1;
-//     airreplay::OpequeEntry req = trace_.ReplayNext(&pos);
-//     if (req.rr_debug_string() != method) {
-//       throw std::runtime_error(
-//           "async replay diverged(" + method + "!=" + req.rr_debug_string() +
-//           "): expected \n" + method + " \nbut got \n" +
-//           req.rr_debug_string());
-//     }
-//     std::cerr << "just consumed a rr object" << req.ShortDebugString() <<
-//     "\n"; req.message().UnpackTo(&request); return pos;
-//   }
-// }
-
-// void Airreplay::recordOutboundCall(
-//     const std::string &debugstring, const google::protobuf::Message
-//     &request, std::shared_ptr<kudu::rpc::OutboundCall> call) {
-//   rr(debugstring, request);
-//   if (rrmode_ == Mode::kReplay) {
-//     // todo:: consider call->call_id() as key
-//     outstandingCalls_[request.ShortDebugString()] = call;
-//     // ^^ the replayer loop will be a thread here that will monitor
-//     // outstandingCalls_ and the trace and will call appropriate callbacks
-//     // outstandingCalls_[request.ShortDebugString()]->CallCallback();
-//   }
-// }
-
 }  // namespace airreplay

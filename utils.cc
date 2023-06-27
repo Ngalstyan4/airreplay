@@ -42,7 +42,8 @@ std::string compareMessages(const Message& message1, const Message& message2,
               reflection1->GetRepeatedMessage(message1, fieldDescriptor, j);
           const Message& nestedMessage2 =
               reflection2->GetRepeatedMessage(message2, fieldDescriptor, j);
-          compareMessages(nestedMessage1, nestedMessage2, fieldName);
+          auto res = compareMessages(nestedMessage1, nestedMessage2, fieldName);
+          if (res != "") return res;
         }
       }
     } else if (fieldDescriptor->cpp_type() ==
@@ -51,7 +52,8 @@ std::string compareMessages(const Message& message1, const Message& message2,
           reflection1->GetMessage(message1, fieldDescriptor);
       const Message& nestedMessage2 =
           reflection2->GetMessage(message2, fieldDescriptor);
-      compareMessages(nestedMessage1, nestedMessage2, fieldName);
+      auto res = compareMessages(nestedMessage1, nestedMessage2, fieldName);
+      if (res != "") return res;
     } else if (fieldDescriptor->cpp_type() == FieldDescriptor::CPPTYPE_STRING) {
       std::string value1 = reflection1->GetString(message1, fieldDescriptor);
       std::string value2 = reflection2->GetString(message2, fieldDescriptor);
@@ -96,5 +98,10 @@ std::string compareMessages(const Message& message1, const Message& message2,
   return "";
 }
 
+std::string compareMessageWithAny(const Message& message1, const Any& any) {
+  google::protobuf::Message* message2 = message1.New();
+  any.UnpackTo(message2);
+  return compareMessages(message1, *message2);
+}
 }  // namespace utils
 }  // namespace airreplay

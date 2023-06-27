@@ -208,7 +208,7 @@ TEST_F(PingPongTest, testCase) {
                   << resp.DebugString() << std::endl;
         node1_->CallCallback(static_cast<PingPongResponse *>(&resp));
       };
-  node1_->airr_->setReplayHooks(hooks);
+  node1_->airr_->RegisterReproducers(hooks);
 
   EXPECT_EQ(node1_->airr_->getTraceForTest().size(), 8)
       << "Some events at the tail did not replay properly";

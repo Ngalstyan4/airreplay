@@ -247,7 +247,7 @@ TEST_F(PingPongTestAsync, testCaseAsync) {
                   << resp.DebugString() << std::endl;
         node1_->CallCallback(static_cast<PingPongResponse *>(&resp));
       };
-  node1_->airr_->setReplayHooks(hooks);
+  node1_->airr_->RegisterReproducers(hooks);
 
   std::cerr << "replaying" << std::endl;
   RunNode1(rep_history1);

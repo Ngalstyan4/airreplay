@@ -21,7 +21,7 @@ class OutboundCall;
 
 namespace airreplay {
 // todo:: drop const or even support moving later if need be
-using HookFunction = std::function<void(const google::protobuf::Message &msg)>;
+using ReproducerFunction = std::function<void(const google::protobuf::Message &msg)>;
 
 void log(const std::string &context, const std::string &msg);
 class Airreplay {
@@ -31,42 +31,36 @@ class Airreplay {
   Airreplay(std::string tracename, Mode mode);
   ~Airreplay();
 
-  /**
-   * This is the main interface applications use to integrate record/replay into
-   * them The interface processes the pair (message, kind). During recording it
-   * writes the pair into the binary trace file. During replay it asserts that
-   * the passed pair is at the current head of the recorded trace. If this
-   * fails, the recorded execution and the current replay have divereged. If the
-   * replay has not diverged, rr looks further to see whether there are other
-   * requests after the current one which have a "kind" such that the system
-   * should reproduce them If so, rr calls appropriate reproduction functions
-   * (see more in setReplayHooks)
-   *
-   * Returns the index of the recorded request (=recordToken).
-   */
-  // int rr(const std::string &debuginfo, google::protobuf::Message &message,
-  //        int kind = 0);
-  // static int rr(const std::string &debuginfo,
-  //               const google::protobuf::Message &message, int kind = 0) {
-  //   std::cerr << "old rr called";
-  //   // throw std::runtime_error("shall not be called! old relic, not fully
-  //   // removed yet");
-  //   return 0;
-  // };
-
   int SaveRestore(const std::string &key, google::protobuf::Message &message);
   int SaveRestore(const std::string &key, std::string &message);
   int SaveRestore(const std::string &key, uint64 &message);
 
-  int RecordReplay(const std::string &key, const google::protobuf::Message &message);
+  /**
+   * This is the main interface applications use to integrate record/replay into
+   * them The interface processes the pair (message, kind). During recording it
+   * saves its arguments into the binary trace file. During replay it checks
+   * that the passed arguments are at the current head of the recorded trace. If
+   * this fails, the interface blocks the caller until this becomes the case. If
+   * this never becomes the case, the recorded execution and the current replay
+   * have divereged.
+   *
+   *  If the replay has not diverged, rr looks to see whether there are other
+   * requests after the current one which have a "kind" such that the system
+   * should reproduce them If so, rr calls appropriate reproduction functions
+   * (see more in RegisterReproducers)
+   *
+   * Returns the index of the recorded request (=recordToken).
+   */
+  int RecordReplay(const std::string &key,
+                   const google::protobuf::Message &message, int kind = 0);
 
   bool isReplay();
-  void setReplayHooks(std::map<int, HookFunction> hooks);
+  void RegisterReproducers(std::map<int, ReproducerFunction> reproduers);
+  void RegisterReproducer(int kind, ReproducerFunction reproducer);
 
-  std::function<void()> RrAsync(const std::string &method,
-                                const google::protobuf::Message &request,
-                                google::protobuf::Message *response,
-                                std::function<void()> callback);
+  std::function<void()> RROutgoingCallAsync(
+      const std::string &method, const google::protobuf::Message &request,
+      google::protobuf::Message *response, std::function<void()> callback);
 
  private:
   Mode rrmode_;
@@ -80,13 +74,12 @@ class Airreplay {
   std::set<std::string> save_restore_keys_;
   // ****************** below are only used in replay ******************
 
-  std::map<int, HookFunction> hooks_;
+  std::map<int, ReproducerFunction> hooks_;
 
   std::function<void()> kUnreachableCallback_{
       []() { std::runtime_error("must have been unreachable"); }};
 
-  void MaybeReplayExternalRPCUnlocked(
-      google::protobuf::Message *response = nullptr);
+  bool MaybeReplayExternalRPCUnlocked(const airreplay::OpequeEntry &req_peek);
   // Records the passed message to disk.
   // does not take any locks and assumes all necessary synchronization is done
   // by the caller reutrns the intex of the record on trace
@@ -108,7 +101,6 @@ class Airreplay {
 };
 extern Airreplay *airr;
 
-// void init(int port, Mode mode);
 }  // namespace airreplay
 
 #endif

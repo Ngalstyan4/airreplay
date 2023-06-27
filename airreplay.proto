@@ -106,3 +106,8 @@ service PingPongService {
   message NonEmpty{
     int32 life = 42;
   }
+
+  message AirreplayKuduInboundTransferPB {
+    int32 size = 1;
+    bytes data = 2;
+  }

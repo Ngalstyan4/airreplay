@@ -44,7 +44,7 @@ Trace::Trace(std::string &traceprefix, Mode mode) : mode_(mode) {
             std::to_string(nread));
       }
       if (!header.ParseFromArray(buf.data(), headerLen)) {
-        throw std::runtime_error("trace file is corrupted ");
+        throw std::runtime_error("trace file is corrupted. parsed" + std::to_string(traceEvents_.size()) + " events");
       }
       traceEvents_.push_back(header);
     }
@@ -126,6 +126,23 @@ void Trace::ConsumeHead(const OpequeEntry &expectedHead) {
   assert(&header == &expectedHead);
   traceEvents_.pop_front();
   pos_++;
+  if (soft_consumed_ != nullptr) {
+    assert(soft_consumed_ == &header);
+  }
+  soft_consumed_ = nullptr;
+}
+
+bool Trace::SoftConsumeHead(const OpequeEntry &expectedHead) {
+  assert(mode_ == Mode::kReplay);
+  assert(!traceEvents_.empty());
+  OpequeEntry &header = traceEvents_.front();
+  assert(&header == &expectedHead);
+  if (soft_consumed_ != nullptr) {
+    assert(soft_consumed_ == &header);
+    return false;
+  }
+  soft_consumed_ = &header;
+  return true;
 }
 
 void Trace::DebugThread(const std::atomic<bool> &do_exit) {

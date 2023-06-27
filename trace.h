@@ -10,6 +10,9 @@
 namespace airreplay {
 enum Mode { kRecord, kReplay };
 
+// Single-threaded trace representation
+// assumes external synchronization to ensure exactly one member function is
+// envoked at a time
 class Trace {
  public:
   Trace(std::string &traceprefix, Mode mode);
@@ -25,6 +28,7 @@ class Trace {
 
   // asserts that expectedHead is the next message in the trace and consumes it
   void ConsumeHead(const OpequeEntry &expectedHead);
+  bool SoftConsumeHead(const OpequeEntry &expectedHead);
 
  private:
   Mode mode_;
@@ -32,6 +36,7 @@ class Trace {
   std::string tracename_;
   std::fstream *tracetxt_;
   std::fstream *tracebin_;
+  airreplay::OpequeEntry  *soft_consumed_;
 
   // partially parsed(proto::Any) trace events for replay
   std::deque<airreplay::OpequeEntry> traceEvents_;
