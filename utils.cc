@@ -98,9 +98,18 @@ std::string compareMessages(const Message& message1, const Message& message2,
   return "";
 }
 
-std::string compareMessageWithAny(const Message& message1, const Any& any) {
-  google::protobuf::Message* message2 = message1.New();
-  any.UnpackTo(message2);
+std::string compareMessageWithAny(const Message& message1, const Any& any2) {
+  // parse message1 into any1 for typestring comparison
+  Any any1;
+  // parse any2 into message2 for value comparison
+  google::protobuf::Message* message2 = nullptr;
+  any1.PackFrom(message1);
+  if (any1.type_url() != any2.type_url()) {
+    return "Type Mismatch m1:" + any1.type_url() + " m2:" + any2.type_url();
+  }
+
+  message2 = message1.New();
+  any2.UnpackTo(message2);
   return compareMessages(message1, *message2);
 }
 }  // namespace utils
