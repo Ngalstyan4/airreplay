@@ -10,9 +10,9 @@
 #include <string>
 #include <thread>
 
-#include "airreplay/airreplay.pb.h"
-#include "airreplay/trace.h"
-#include "kudu/rpc/rpc_controller.h"
+#include "airreplay.pb.h"
+#include "trace.h"
+// #include "kudu/rpc/rpc_controller.h"
 namespace kudu {
 namespace rpc {
 class OutboundCall;
@@ -22,6 +22,7 @@ class OutboundCall;
 namespace airreplay {
 // todo:: drop const or even support moving later if need be
 using ReproducerFunction = std::function<void(const google::protobuf::Message &msg)>;
+using google::protobuf::uint64;
 
 void log(const std::string &context, const std::string &msg);
 class Airreplay {

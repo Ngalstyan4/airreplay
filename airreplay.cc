@@ -4,7 +4,7 @@
 #include <deque>
 #include <thread>
 
-#include "airreplay/airreplay.pb.h"
+#include "airreplay.pb.h"
 #include "utils.h"
 
 namespace airreplay {
@@ -47,7 +47,12 @@ int Airreplay::doRecord(const std::string &debugstring,
   if (request.IsInitialized()) {
     // exception will be thrown if request is serialized when it has unfilled
     // required fields relevant for GetNodeInstanceResponsePB
+#ifdef USE_OLD_PROTOBUF
+    size_t reqLen = request.ByteSize();
+#else
     size_t reqLen = request.ByteSizeLong();
+#endif
+    reqLen = request.ByteSize();
     header.set_body_size(reqLen);
     *header.mutable_rr_debug_string() = debugstring;
     header.mutable_message()->PackFrom(request);
@@ -202,7 +207,11 @@ int Airreplay::SaveRestoreInternal(const std::string &key,
 
     if (proto_message != nullptr) {
       if (proto_message->IsInitialized()) {
-        int len = proto_message->ByteSizeLong();
+#if USE_OLD_PROTOBUF
+        size_t len = proto_message->ByteSize();
+#else
+        size_t len = proto_message->ByteSizeLong();
+#endif
         header.set_body_size(len);
         header.mutable_message()->PackFrom(*proto_message);
       }
@@ -239,7 +248,12 @@ int Airreplay::SaveRestoreInternal(const std::string &key,
       // todo find abetter way of saying "there is no other data in
       if (str_message != nullptr) {
         assert(!req.str_message().empty());
+#if USE_OLD_PROTOBUF
+        assert(req.message().ByteSize() == 0);
+#else
         assert(req.message().ByteSizeLong() == 0);
+#endif
+
         *str_message = req.str_message();
       }
       if (int_message != nullptr) {
@@ -277,7 +291,11 @@ int Airreplay::RecordReplay(const std::string &key,
     header.set_rr_debug_string(key);
     // header.set_link_to_token(linkToken);
     if (message.IsInitialized()) {
+#if USE_OLD_PROTOBUF
+      size_t mlen = message.ByteSize();
+#else
       size_t mlen = message.ByteSizeLong();
+#endif
       header.set_body_size(mlen);
       header.mutable_message()->PackFrom(message);
     }

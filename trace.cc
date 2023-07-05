@@ -1,6 +1,6 @@
 #include "trace.h"
 
-#include "airreplay/airreplay.pb.h"
+#include "airreplay.pb.h"
 
 namespace airreplay {
 
@@ -75,7 +75,11 @@ int Trace::pos() { return pos_; }
 int Trace::Record(const airreplay::OpequeEntry &header) {
   assert(mode_ == Mode::kRecord);
   *tracetxt_ << header.ShortDebugString() << std::endl;
-  auto hdr_len = header.ByteSizeLong();
+#ifdef USE_OLD_PROTOBUF
+  size_t hdr_len = header.ByteSize();
+#else
+  size_t hdr_len = header.ByteSizeLong();
+#endif
   tracebin_->write((char *)&hdr_len, sizeof(size_t));
   header.SerializeToOstream(tracebin_);
   // when perf becomes more important, will get rid of any recording above, will

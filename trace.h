@@ -5,7 +5,7 @@
 #include <thread>
 #include <atomic>
 
-#include "airreplay/airreplay.pb.h"
+#include "airreplay.pb.h"
 
 namespace airreplay {
 enum Mode { kRecord, kReplay };
