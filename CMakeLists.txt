@@ -105,10 +105,6 @@ add_custom_target(not-up-to-date
     COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --red "Attempt to build an AirReplay dependency or test that is not up to date with AirReplay library"
 )
 
-# execute_process(
-#     COMMAND bash "-c" "protoc --plugin=protoc-gen-cpp-grpc=/home/narek/grpc_install/LIB_INSTALLED/bin/grpc_cpp_plugin  --proto_path=../../src/airreplay/ --cpp-grpc_out=./src/airreplay ../../src/airreplay/airreplay.proto"
-# )
-# . rpc-test.cc
 add_executable(airr-test airr-test.cc airr-test-async.cc  gtest_main.cc ${PERSISTENT_VARS_PROTO_SRCS})
 set_target_properties(airr-test PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
 add_dependencies(airr-test not-up-to-date)
@@ -127,4 +123,23 @@ gmock
 # todo: why do I need glog?
 glog
 gflags
+)
+
+set(INSTALL_HEADER_DIR "${CMAKE_CURRENT_BINARY_DIR}/airreplay")
+install(
+    DIRECTORY "."
+    DESTINATION "${INSTALL_HEADER_DIR}"
+    FILES_MATCHING
+    PATTERN "*.h"
+    PATTERN "build*" EXCLUDE
+    PATTERN ".git" EXCLUDE
+    PATTERN "cmake" EXCLUDE
+)
+
+foreach(ITEM ${PERSISTENT_VARS_PROTO_HDRS})
+  install(
+    FILES ${ITEM}
+    DESTINATION "${INSTALL_HEADER_DIR}"
+  )
+endforeach()
 )
