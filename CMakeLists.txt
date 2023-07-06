@@ -125,7 +125,12 @@ glog
 gflags
 )
 
-set(INSTALL_HEADER_DIR "${CMAKE_CURRENT_BINARY_DIR}/airreplay")
+
+set(INSTALL_DIR "${CMAKE_CURRENT_BINARY_DIR}/install")
+set(INSTALL_HEADER_DIR "${INSTALL_DIR}/include/airreplay")
+set(INSTALL_LIB_DIR "${INSTALL_DIR}/lib")
+
+# install headers
 install(
     DIRECTORY "."
     DESTINATION "${INSTALL_HEADER_DIR}"
@@ -135,11 +140,17 @@ install(
     PATTERN ".git" EXCLUDE
     PATTERN "cmake" EXCLUDE
 )
-
 foreach(ITEM ${PERSISTENT_VARS_PROTO_HDRS})
   install(
     FILES ${ITEM}
     DESTINATION "${INSTALL_HEADER_DIR}"
   )
 endforeach()
+
+# install libraries
+install(
+    TARGETS airreplay
+    DESTINATION "${INSTALL_LIB_DIR}"
+)
+
 )
