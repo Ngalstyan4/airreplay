@@ -24,6 +24,20 @@ namespace airreplay {
 using ReproducerFunction = std::function<void(const google::protobuf::Message &msg)>;
 using google::protobuf::uint64;
 
+enum ReservedMsgKinds {
+    kInvalid,
+    kDefault,
+    kSaveRestore,
+    // the next two are used in RROutboundCallAsync
+    kOutboundRequest,
+    kInboundResponse,
+    // inbound requests and responses are recorded via RecordReplay and the application specifies their kind
+    // we know whether we should replay them or not based on availability of corresponding hook function
+    // so no special message kinds are necessary here for recording such events
+ 
+    kMaxReservedMsgKind // should be last!
+};
+
 void log(const std::string &context, const std::string &msg);
 class Airreplay {
  public:
@@ -59,7 +73,7 @@ class Airreplay {
   void RegisterReproducers(std::map<int, ReproducerFunction> reproduers);
   void RegisterReproducer(int kind, ReproducerFunction reproducer);
 
-  std::function<void()> RROutgoingCallAsync(
+  std::function<void()> RROutboundCallAsync(
       const std::string &method, const google::protobuf::Message &request,
       google::protobuf::Message *response, std::function<void()> callback);
 
@@ -81,10 +95,8 @@ class Airreplay {
       []() { std::runtime_error("must have been unreachable"); }};
 
   bool MaybeReplayExternalRPCUnlocked(const airreplay::OpequeEntry &req_peek);
-  // Records the passed message to disk.
-  // does not take any locks and assumes all necessary synchronization is done
-  // by the caller reutrns the intex of the record on trace
-  int doRecord(const std::string &debugstring,
+  // Constructs and returns an opeque entry
+  airreplay::OpequeEntry NewOpequeEntry(const std::string &debugstring,
                const google::protobuf::Message &request, int kind,
                int linkToken = -1);
 
