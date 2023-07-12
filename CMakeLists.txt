@@ -10,14 +10,37 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED On)
 set(CMAKE_CXX_EXTENSIONS Off)
 
+# necessary if the target system uses shared libraries
+# https://www.collabora.com/about-us/blog/2014/10/01/dynamic-relocs,-runtime-overflows-and-fpic/
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 if(POLICY CMP0077)
   # Allow parent project to override options of children obtain via FetchContent
   # or add_subdirectory.
   cmake_policy(SET CMP0077 NEW)
 endif()
 
-# 3.4.0 hardcoded for kudu for now
-find_package(Protobuf 3.4.0 REQUIRED)
+option(KUDU_HOME "Specifies the home directory of kudu if AirReplay is used with kudu so kudu's built protobuf can be used" "")
+
+# use the protobuf library built by kudu instead of using the systemwide one
+if (KUDU_HOME)
+  message(INFO "kudu home is ${KUDU_HOME}")
+  set(PROTOBUF_PREFIX "${KUDU_HOME}/thirdparty/installed/uninstrumented")
+  set(Protobuf_INCLUDE_DIR "${PROTOBUF_PREFIX}/include")
+  set(Protobuf_LIBRARY_DEBUG "${PROTOBUF_PREFIX}/lib/libprotobuf.a")
+  set(Protobuf_LIBRARY_RELEASE "${PROTOBUF_PREFIX}//lib/libprotobuf.a")
+
+  set(Protobuf_LITE_LIBRARY_DEBUG "${PROTOBUF_PREFIX}/lib/libprotobuf-lite.a")
+  set(Protobuf_LITE_LIBRARY_RELEASE "${PROTOBUF_PREFIX}/lib/libprotobuf-lite.a")
+
+  set(Protobuf_PROTOC_EXECUTABLE "${PROTOBUF_PREFIX}/bin/protoc")
+  set(Protobuf_PROTOC_LIBRARY_DEBUG "${PROTOBUF_PREFIX}/lib/libprotoc.a")
+  set(Protobuf_PROTOC_LIBRARY_RELEASE "${PROTOBUF_PREFIX}/lib/libprotoc.a")
+endif()
+
+find_package(Protobuf REQUIRED)
 include_directories(${Protobuf_INCLUDE_DIRS})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
