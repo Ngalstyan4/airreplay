@@ -7,5 +7,7 @@ std::string compareMessages(const google::protobuf::Message& message1,
                             const google::protobuf::Message& message2,
                             const std::string& parentField = "");
 std::string compareMessageWithAny(const google::protobuf::Message& message1, const google::protobuf::Any& any);
+
+bool isAscii(const std::string &s);
 }  // namespace utils
 }  // namespace airreplay

@@ -80,6 +80,24 @@ std::string compareMessages(const Message& message1, const Message& message2,
                " f2value:" + std::to_string(value2);
       }
 
+    } else if (fieldDescriptor->cpp_type() == FieldDescriptor::CPPTYPE_UINT32) {
+      uint32_t value1 = reflection1->GetUInt32(message1, fieldDescriptor);
+      uint32_t value2 = reflection2->GetUInt32(message2, fieldDescriptor);
+      if (value1 != value2) {
+        return "Field: " + fieldName + " - Value Mismatch" +
+               " f1value:" + std::to_string(value1) +
+               " f2value:" + std::to_string(value2);
+      }
+
+    } else if (fieldDescriptor->cpp_type() == FieldDescriptor::CPPTYPE_BOOL) {
+      bool value1 = reflection1->GetBool(message1, fieldDescriptor);
+      bool value2 = reflection2->GetBool(message2, fieldDescriptor);
+      if (value1 != value2) {
+        return "Field: " + fieldName + " - Value Mismatch" +
+               " f1value:" + std::to_string(value1) +
+               " f2value:" + std::to_string(value2);
+      }
+
     } else if (fieldDescriptor->cpp_type() == FieldDescriptor::CPPTYPE_INT64) {
       int64_t value1 = reflection1->GetInt64(message1, fieldDescriptor);
       int64_t value2 = reflection2->GetInt64(message2, fieldDescriptor);
@@ -112,5 +130,14 @@ std::string compareMessageWithAny(const Message& message1, const Any& any2) {
   any2.UnpackTo(message2);
   return compareMessages(message1, *message2);
 }
+
+bool isAscii(const std::string &s) {
+  for (size_t i = 0; i < s.size(); i++) {
+    if(s[i] < 0) return false;
+  }
+  return true;
+}
+
+
 }  // namespace utils
 }  // namespace airreplay

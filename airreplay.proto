@@ -84,6 +84,7 @@ service PingPongService {
     int64  num_message = 7;
     // change the name
     string rr_debug_string = 8;
+    bytes bytes_message = 9;
   }
   
   message OpequeBytes {

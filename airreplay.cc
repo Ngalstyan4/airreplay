@@ -3,6 +3,7 @@
 #include <cassert>
 #include <deque>
 #include <thread>
+#include <glog/logging.h>
 
 #include "airreplay.pb.h"
 #include "utils.h"
@@ -207,7 +208,11 @@ int Airreplay::SaveRestoreInternal(const std::string &key,
     header.set_kind(kSaveRestore);
     *header.mutable_rr_debug_string() = key;
     if (str_message != nullptr) {
-      *header.mutable_str_message() = *str_message;
+      if (utils::isAscii(*str_message)) {
+        *header.mutable_str_message() = *str_message;
+      } else {
+        *header.mutable_bytes_message() = *str_message;
+      }
     }
 
     if (int_message != nullptr) {
@@ -243,7 +248,7 @@ int Airreplay::SaveRestoreInternal(const std::string &key,
           if (req.kind() != kSaveRestore) {
             log("SaveRestoreInternal@" + std::to_string(pos),
                 "not the right kind " + std::to_string(req.kind()) +
-                    " != " + std::to_string(kSaveRestore) + "\t\tkey: " + key);
+                    " != kSaveRestore(" + std::to_string(kSaveRestore) + ")\t\tkey: " + key);
           } else {
             log("SaveRestoreInternal",
                 "saverestore: not the right kind or method (((((((((((" + key +
@@ -251,21 +256,22 @@ int Airreplay::SaveRestoreInternal(const std::string &key,
           }
         }
         lock.unlock();
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(400));
         continue;
       }
       
       // determine whether the save-restored value was numeric, string or proto,
       // and recover it accordingly
       if (str_message != nullptr) {
-        assert(!req.str_message().empty());
+        // c++ str may be either valid ascii or not valid ascii
+        assert(!(req.str_message().empty() && req.bytes_message().empty()));
 #if USE_OLD_PROTOBUF
         assert(req.message().ByteSize() == 0);
 #else
         assert(req.message().ByteSizeLong() == 0);
 #endif
 
-        *str_message = req.str_message();
+        *str_message = !req.str_message().empty() ? req.str_message() : req.bytes_message();
       }
       if (int_message != nullptr) {
         *int_message = req.num_message();
@@ -312,16 +318,21 @@ int Airreplay::RecordReplay(const std::string &key,
     }
     return trace_.Record(header);
   } else {
+    int num_replay_attempts = 0;
     int pos = -1;
     while (true) {
+      // if I keep trying to replay the same message without making progres, there must be bug
+      // or there is non-determinism in the application that was not instrumented
+      // DCHECK prints a stack trace and helps me go patch the non-determinism in the application
+      DCHECK(num_replay_attempts < 10);
+      num_replay_attempts++;
+
       std::unique_lock lock(recordOrder_);
       const airreplay::OpequeEntry &req_peek = trace_.PeekNext(&pos);
-
       if (req_peek.kind() != kind) {
         log("RecordReplay@" + std::to_string(pos),
             "not the right kind " + std::to_string(req_peek.kind()) +
                 " !=" + std::to_string(kind) + "\t\tkey: " + key);
-        DCHECK(false);
       } else if (key != req_peek.rr_debug_string()) {
         log("RecordReplay@" + std::to_string(pos),
             "right kind(" + std::to_string(kind) +
@@ -344,7 +355,7 @@ int Airreplay::RecordReplay(const std::string &key,
       }
 
       lock.unlock();
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      std::this_thread::sleep_for(std::chrono::milliseconds(400));
       continue;
     }
   }
