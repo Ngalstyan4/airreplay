@@ -4,7 +4,7 @@
 
 namespace airreplay {
 
-Trace::Trace(std::string &traceprefix, Mode mode) : mode_(mode) {
+Trace::Trace(std::string &traceprefix, Mode mode) : mode_(mode), soft_consumed_(nullptr) {
   txttracename_ = traceprefix + ".txt";
   tracename_ = traceprefix + ".bin";
   pos_ = 0;
