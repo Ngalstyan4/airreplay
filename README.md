@@ -71,6 +71,9 @@ Example integrations:
     - Use `RROutboundCall` if there is outbound-request-specific callback [kudu (proxy.cc)](https://github.com/Ngalstyan4/kuduraft/compare/kudu...Ngalstyan4:kuduraft:kudu_airreplay?expand=1#diff-aa0d48ba6d10b66bba7262f72d15c15105429ce3dab097725f7c7f0b6df57530R204-R217)
  1. Record inbound calls [kudu request part(connection.cc)](https://github.com/Ngalstyan4/kuduraft/compare/kudu...Ngalstyan4:kuduraft:kudu_airreplay?expand=1#diff-7a43ab0a4611f187f672845c106ae903eb81350fbf9b5b9aabeecfbcf12123e6R704-R707) [kudu response part (inbound_call.cc)](https://github.com/Ngalstyan4/kuduraft/compare/kudu...Ngalstyan4:kuduraft:kudu_airreplay?expand=1#diff-5a4f04732c39584b145034490dcc2602ed0b896a30c68089e7293584f1ac2c1bR206-R212)
  1. Register an inbound request reproducer with AirReplay [kudu (kserver.cc)](https://github.com/Ngalstyan4/kuduraft/compare/kudu...Ngalstyan4:kuduraft:kudu_airreplay?expand=1#diff-b843607bdc0af2f903cbf75e924ab230d7b4506fb83e23b27853611c8f04553aR148-R181)
+1. Convert internal non-deterministic events into incoming messages that can be recorded and then be retriggered with a custom registered reproducer (<ins>kudu WIP examples below</ins>)
+    1. Timer expiration for heartbeats
+    1. Lock acquization order of key locks
  ---
  1. Record enough information about all objects that will not exist in replay so replay can successfully mock them (kudu examples below)
     1. Information on incoming socket [kudu (inbound_call.cc)](https://github.com/Ngalstyan4/kuduraft/compare/kudu...Ngalstyan4:kuduraft:kudu_airreplay?expand=1#diff-5a4f04732c39584b145034490dcc2602ed0b896a30c68089e7293584f1ac2c1bR119-R151)
