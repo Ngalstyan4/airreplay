@@ -103,7 +103,7 @@ set(AIRREPLAY_SRCS
   external_replayer.cc
   utils.cc
 )
-add_library(airreplay ${AIRREPLAY_SRCS} ${PERSISTENT_VARS_PROTO_SRCS})
+add_library(airreplay SHARED ${AIRREPLAY_SRCS} ${PERSISTENT_VARS_PROTO_SRCS})
 target_link_libraries(airreplay airreplay_proto)
 
 add_executable(serde-test serde-test.cc gtest_main.cc ${PERSISTENT_VARS_PROTO_SRCS})
