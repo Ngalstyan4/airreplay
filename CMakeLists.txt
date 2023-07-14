@@ -53,7 +53,7 @@ endif()
 # # specify sources and project root
 PROTOBUF_GENERATE_CPP(
   PERSISTENT_VARS_PROTO_SRCS PERSISTENT_VARS_PROTO_HDRS
-    airreplay.proto)
+    airreplay/airreplay.proto)
 
   # set(options EXPORTED_SHARED)
   # set(one_value_args COMPILE_FLAGS EXPORTED_OUTPUT_NAME EXPORTED_OUTPUT_DIRECTORY)
@@ -98,15 +98,15 @@ add_library(airreplay_proto ${PERSISTENT_VARS_PROTO_SRCS})
 target_link_libraries(airreplay_proto ${Protobuf_LIBRARIES})
 
 set(AIRREPLAY_SRCS
-  trace.cc
-  airreplay.cc
-  external_replayer.cc
-  utils.cc
+  airreplay/trace.cc
+  airreplay/airreplay.cc
+  airreplay/external_replayer.cc
+  airreplay/utils.cc
 )
 add_library(airreplay SHARED ${AIRREPLAY_SRCS} ${PERSISTENT_VARS_PROTO_SRCS})
 target_link_libraries(airreplay airreplay_proto)
 
-add_executable(serde-test serde-test.cc gtest_main.cc ${PERSISTENT_VARS_PROTO_SRCS})
+add_executable(serde-test airreplay/serde-test.cc airreplay/gtest_main.cc ${PERSISTENT_VARS_PROTO_SRCS})
 set_target_properties(serde-test PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
 add_dependencies(serde-test not-up-to-date)
 target_include_directories(serde-test PUBLIC .)
@@ -128,7 +128,7 @@ add_custom_target(not-up-to-date
     COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --red "Attempt to build an AirReplay dependency or test that is not up to date with AirReplay library"
 )
 
-add_executable(airr-test airr-test.cc airr-test-async.cc  gtest_main.cc ${PERSISTENT_VARS_PROTO_SRCS})
+add_executable(airr-test airreplay/airr-test.cc airreplay/airr-test-async.cc  airreplay/gtest_main.cc ${PERSISTENT_VARS_PROTO_SRCS})
 set_target_properties(airr-test PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
 add_dependencies(airr-test not-up-to-date)
 target_include_directories(airr-test PUBLIC .)
@@ -155,13 +155,10 @@ set(INSTALL_LIB_DIR "${INSTALL_DIR}/lib")
 
 # install headers
 install(
-    DIRECTORY "."
+    DIRECTORY "airreplay/"
     DESTINATION "${INSTALL_HEADER_DIR}"
     FILES_MATCHING
     PATTERN "*.h"
-    PATTERN "build*" EXCLUDE
-    PATTERN ".git" EXCLUDE
-    PATTERN "cmake" EXCLUDE
 )
 foreach(ITEM ${PERSISTENT_VARS_PROTO_HDRS})
   install(
