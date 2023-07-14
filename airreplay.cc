@@ -1,9 +1,10 @@
 #include "airreplay.h"
 
+#include <glog/logging.h>
+
 #include <cassert>
 #include <deque>
 #include <thread>
-#include <glog/logging.h>
 
 #include "airreplay.pb.h"
 #include "utils.h"
@@ -31,26 +32,28 @@ Airreplay::~Airreplay() {
 bool Airreplay::isReplay() { return rrmode_ == Mode::kReplay; }
 
 void Airreplay::RegisterReproducers(std::map<int, ReproducerFunction> hooks) {
-  for(auto it = hooks.begin(); it != hooks.end(); ++it) {
+  for (auto it = hooks.begin(); it != hooks.end(); ++it) {
     if (it->first <= kMaxReservedMsgKind) {
-      // throw std::runtime_error("kind " + std::to_string(it->first) + " is reserved for internal use"+
-      // "Please use kinds larger than " + std::to_string(kMaxReservedMsgKind));
+      // throw std::runtime_error("kind " + std::to_string(it->first) + " is
+      // reserved for internal use"+ "Please use kinds larger than " +
+      // std::to_string(kMaxReservedMsgKind));
     }
   }
   hooks_ = hooks;
 }
 
 void Airreplay::RegisterReproducer(int kind, ReproducerFunction reproducer) {
-    if (kind <= kMaxReservedMsgKind) {
-      // throw std::runtime_error("kind " + std::to_string(kind) + " is reserved for internal use"+
-      // "Please use kinds larger than " + std::to_string(kMaxReservedMsgKind));
-    }
+  if (kind <= kMaxReservedMsgKind) {
+    // throw std::runtime_error("kind " + std::to_string(kind) + " is reserved
+    // for internal use"+ "Please use kinds larger than " +
+    // std::to_string(kMaxReservedMsgKind));
+  }
   hooks_[kind] = reproducer;
 }
 
-airreplay::OpequeEntry Airreplay::NewOpequeEntry(const std::string &debugstring,
-                        const google::protobuf::Message &request, int kind,
-                        int linkToken) {
+airreplay::OpequeEntry Airreplay::NewOpequeEntry(
+    const std::string &debugstring, const google::protobuf::Message &request,
+    int kind, int linkToken) {
   airreplay::OpequeEntry header;
   header.set_kind(kind);
   header.set_link_to_token(linkToken);
@@ -91,7 +94,8 @@ std::function<void()> Airreplay::RROutboundCallAsync(
   // multiple threads.
   if (rrmode_ == Mode::kRecord) {
     std::lock_guard lock(recordOrder_);
-    airreplay::OpequeEntry header = NewOpequeEntry(method, request, kOutboundRequest);
+    airreplay::OpequeEntry header =
+        NewOpequeEntry(method, request, kOutboundRequest);
     int recordToken = trace_.Record(header);
     auto myCallback =
         boost::function<void()>([this, recordToken, response, callback]() {
@@ -116,7 +120,8 @@ std::function<void()> Airreplay::RROutboundCallAsync(
         if (!MaybeReplayExternalRPCUnlocked(req_peek)) {
           log("RROutboundCallAsync Replay attempt",
               "RROutboundCallAsync not replaying@" + std::to_string(pos) +
-                  " \nexpected kind kOutBoundRequest(" + std::to_string(kOutboundRequest) +") BUT_GOT\n" +
+                  " \nexpected kind kOutBoundRequest(" +
+                  std::to_string(kOutboundRequest) + ") BUT_GOT\n" +
                   std::to_string(req_peek.kind()));
         }
         lock.unlock();
@@ -248,7 +253,8 @@ int Airreplay::SaveRestoreInternal(const std::string &key,
           if (req.kind() != kSaveRestore) {
             log("SaveRestoreInternal@" + std::to_string(pos),
                 "not the right kind " + std::to_string(req.kind()) +
-                    " != kSaveRestore(" + std::to_string(kSaveRestore) + ")\t\tkey: " + key);
+                    " != kSaveRestore(" + std::to_string(kSaveRestore) +
+                    ")\t\tkey: " + key);
           } else {
             log("SaveRestoreInternal",
                 "saverestore: not the right kind or method (((((((((((" + key +
@@ -259,7 +265,7 @@ int Airreplay::SaveRestoreInternal(const std::string &key,
         std::this_thread::sleep_for(std::chrono::milliseconds(400));
         continue;
       }
-      
+
       // determine whether the save-restored value was numeric, string or proto,
       // and recover it accordingly
       if (str_message != nullptr) {
@@ -271,7 +277,8 @@ int Airreplay::SaveRestoreInternal(const std::string &key,
         assert(req.message().ByteSizeLong() == 0);
 #endif
 
-        *str_message = !req.str_message().empty() ? req.str_message() : req.bytes_message();
+        *str_message = !req.str_message().empty() ? req.str_message()
+                                                  : req.bytes_message();
       }
       if (int_message != nullptr) {
         *int_message = req.num_message();
@@ -321,9 +328,10 @@ int Airreplay::RecordReplay(const std::string &key,
     int num_replay_attempts = 0;
     int pos = -1;
     while (true) {
-      // if I keep trying to replay the same message without making progres, there must be bug
-      // or there is non-determinism in the application that was not instrumented
-      // DCHECK prints a stack trace and helps me go patch the non-determinism in the application
+      // if I keep trying to replay the same message without making progres,
+      // there must be bug or there is non-determinism in the application that
+      // was not instrumented DCHECK prints a stack trace and helps me go patch
+      // the non-determinism in the application
       DCHECK(num_replay_attempts < 10);
       num_replay_attempts++;
 

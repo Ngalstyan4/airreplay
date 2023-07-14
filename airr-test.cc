@@ -21,8 +21,8 @@ class MockSystemNode {
   bool isRecorded_;
 
   // write generic forwarder to airr->rr if isRecorded_ is true
-  void RR(const std::string &method,
-                   const google::protobuf::Message &request, int kind=0)  {
+  void RR(const std::string &method, const google::protobuf::Message &request,
+          int kind = 0) {
     if (isRecorded_) {
       airr_->rr(method, request, kind);
     }
@@ -66,7 +66,7 @@ class MockSystemNode {
     response.set_message("Pong++" + request.message());
     RR("I was called with(async)", request, RPCKind::INCOMING_ASYNC_PINGGONG);
 
-    if (!(airr_  && airr_->isReplay())) {
+    if (!(airr_ && airr_->isReplay())) {
       neighbors_[0].lock()->CallCallback(&response);
     }
     RR("I responded with(callback)", response);
@@ -80,7 +80,7 @@ class MockSystemNode {
   void DispatchPingPong(const PingPongRequest &request,
                         PingPongResponse *response) {
     RR("I am requesting", request);
-    if (!(airr_  && airr_->isReplay())) {
+    if (!(airr_ && airr_->isReplay())) {
       neighbors_[0].lock()->PingPong(request, response);
     }
     RR("I was responded with", *response);
@@ -95,7 +95,7 @@ class MockSystemNode {
     PingPongResponse response;
     RR("I am async requesting", request);
     // todo:: find a way to call the callback in replay
-    if (!(airr_  && airr_->isReplay())) {
+    if (!(airr_ && airr_->isReplay())) {
       neighbors_[0].lock()->AsyncPingPong(request);
     }
   }
@@ -107,8 +107,7 @@ class MockSystemNode {
     std::cerr << "Callcallback calling callback with "
               << response->DebugString() << " " << std::endl;
 
-    RR("I was async responded with", *response,
-                            RPCKind::kIncomingCallback);
+    RR("I was async responded with", *response, RPCKind::kIncomingCallback);
     assert(callback_ != nullptr && "callback_ is null");
     std::cerr << " callback function is" << reinterpret_cast<void *>(&callback_)
               << std::endl;
@@ -198,7 +197,6 @@ TEST_F(PingPongTest, testCase) {
     static_cast<const google::protobuf::Any &>(msg).UnpackTo(&req);
     node1_->PingPong(req, &res);
   };
-
 
   hooks[RPCKind::kIncomingCallback] =
       [&](const google::protobuf::Message &msg) {

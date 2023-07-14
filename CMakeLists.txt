@@ -175,5 +175,3 @@ install(
     TARGETS airreplay
     DESTINATION "${INSTALL_LIB_DIR}"
 )
-
-)

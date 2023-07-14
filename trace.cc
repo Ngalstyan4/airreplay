@@ -4,7 +4,8 @@
 
 namespace airreplay {
 
-Trace::Trace(std::string &traceprefix, Mode mode) : mode_(mode), soft_consumed_(nullptr) {
+Trace::Trace(std::string &traceprefix, Mode mode)
+    : mode_(mode), soft_consumed_(nullptr) {
   txttracename_ = traceprefix + ".txt";
   tracename_ = traceprefix + ".bin";
   pos_ = 0;
@@ -44,14 +45,17 @@ Trace::Trace(std::string &traceprefix, Mode mode) : mode_(mode), soft_consumed_(
             std::to_string(nread));
       }
       if (!header.ParseFromArray(buf.data(), headerLen)) {
-        throw std::runtime_error("trace file is corrupted. parsed" + std::to_string(traceEvents_.size()) + " events");
+        throw std::runtime_error("trace file is corrupted. parsed" +
+                                 std::to_string(traceEvents_.size()) +
+                                 " events");
       }
       traceEvents_.push_back(header);
     }
     std::cerr << "trace parsed " << traceEvents_.size()
               << " events for replay \n";
     const std::atomic<bool> &do_exit = debug_thread_exit_;
-    //q:: why do I need ref at &do_exit when in everywhere else I do not need that?
+    // q:: why do I need ref at &do_exit when in everywhere else I do not need
+    // that?
     debug_thread_ = std::thread(&Trace::DebugThread, this, &do_exit);
   }
 }

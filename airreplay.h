@@ -21,21 +21,23 @@ class OutboundCall;
 
 namespace airreplay {
 // todo:: drop const or even support moving later if need be
-using ReproducerFunction = std::function<void(const google::protobuf::Message &msg)>;
+using ReproducerFunction =
+    std::function<void(const google::protobuf::Message &msg)>;
 using google::protobuf::uint64;
 
 enum ReservedMsgKinds {
-    kInvalid,
-    kDefault,
-    kSaveRestore,
-    // the next two are used in RROutboundCallAsync
-    kOutboundRequest,
-    kInboundResponse,
-    // inbound requests and responses are recorded via RecordReplay and the application specifies their kind
-    // we know whether we should replay them or not based on availability of corresponding hook function
-    // so no special message kinds are necessary here for recording such events
- 
-    kMaxReservedMsgKind // should be last!
+  kInvalid,
+  kDefault,
+  kSaveRestore,
+  // the next two are used in RROutboundCallAsync
+  kOutboundRequest,
+  kInboundResponse,
+  // inbound requests and responses are recorded via RecordReplay and the
+  // application specifies their kind we know whether we should replay them or
+  // not based on availability of corresponding hook function so no special
+  // message kinds are necessary here for recording such events
+
+  kMaxReservedMsgKind  // should be last!
 };
 
 void log(const std::string &context, const std::string &msg);
@@ -96,9 +98,9 @@ class Airreplay {
 
   bool MaybeReplayExternalRPCUnlocked(const airreplay::OpequeEntry &req_peek);
   // Constructs and returns an opeque entry
-  airreplay::OpequeEntry NewOpequeEntry(const std::string &debugstring,
-               const google::protobuf::Message &request, int kind,
-               int linkToken = -1);
+  airreplay::OpequeEntry NewOpequeEntry(
+      const std::string &debugstring, const google::protobuf::Message &request,
+      int kind, int linkToken = -1);
 
   // this API is necessary for 2 reasons
   // 1. unlike in go, here replayHooks are argumentless callbacks so the

@@ -131,13 +131,12 @@ std::string compareMessageWithAny(const Message& message1, const Any& any2) {
   return compareMessages(message1, *message2);
 }
 
-bool isAscii(const std::string &s) {
+bool isAscii(const std::string& s) {
   for (size_t i = 0; i < s.size(); i++) {
-    if(s[i] < 0) return false;
+    if (s[i] < 0) return false;
   }
   return true;
 }
-
 
 }  // namespace utils
 }  // namespace airreplay

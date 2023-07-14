@@ -37,78 +37,83 @@ message TestMessage2PB {
   string info = 3;
 }
 
-
 message PingPongRequest {
-    string message = 1;
-  }
+  string message = 1;
+}
 message PingPongResponse {
-    string message = 1;
-  }
+  string message = 1;
+}
 service PingPongService {
-    rpc PingPong(PingPongRequest) returns (PingPongResponse);
-  }
+  rpc PingPong(PingPongRequest) returns (PingPongResponse);
+}
 
+message OpequeEntry {
+  int32 kind = 1;
+  // typically message body (if there is one) is appended to the OpequeEntry
+  // block on disk. This specifies the length of the body so it can properly be
+  // unmarshalled. This approach is chosen (insead of embedding the body as a
+  // field here) to avoid double-copying of message body (once to marshal it
+  // into a byte array in OpequeEntry, and second time when marshalling
+  // OpequeEntry)
+  uint32 body_size = 2;
+  uint64 timestamp = 3;
+  /*
+  the full message protobuf is not put here during recording as doing so
+  results in significant overhead for the following reasons:
+  1. Any contains a full URL of nested proto type which often amounts to ~80% of
+  the payload size this needlessly inflates the trace
+  2. Any keeps the message in a marshalled format and allocates for it
+  internally. So, in recording it ends up being copied twice - once into Any's
+  buffer and a second time into the ring buffer or other file cache buffer
+  3. Any is a ProtoV2 type so to populate it in recording I have to convert etcd
+  protoV1 buffers into protov2 which is quite expensive. I could alternatively
+  use Any for protov2 and
+  https://github.com/golang/protobuf/blob/master/ptypes/any.go for protov1 but
+  the two points above would still apply
 
-  message OpequeEntry {
-    int32 kind = 1;
-    // typically message body (if there is one) is appended to the OpequeEntry block on disk. This specifies the length
-    // of the body so it can properly be unmarshalled.
-    // This approach is chosen (insead of embedding the body as a field here) to avoid double-copying of message body
-    // (once to marshal it into a byte array in OpequeEntry, and second time when marshalling OpequeEntry)
-    uint32 body_size = 2;
-    uint64 timestamp = 3;
-    /*
-    the full message protobuf is not put here during recording as doing so
-    results in significant overhead for the following reasons:
-    1. Any contains a full URL of nested proto type which often amounts to ~80% of the payload size
-    this needlessly inflates the trace
-    2. Any keeps the message in a marshalled format and allocates for it internally.
-    So, in recording it ends up being copied twice - once into Any's buffer and a second time into
-    the ring buffer or other file cache buffer
-    3. Any is a ProtoV2 type so to populate it in recording I have to convert etcd protoV1 buffers into protov2
-    which is quite expensive. I could alternatively use Any for protov2 and https://github.com/golang/protobuf/blob/master/ptypes/any.go
-    for protov1 but the two points above would still apply
-  
-    Instead, the full message protobuf is serialized separately on file right after the OpequeEntry block
-    In replay the replayer reads the next block and populates this Any field here which makes us to worry
-    less about explicit type conversions during replay (those are handled by trace parser)
-  
-    Note: this assumes recorded trace (kind info) is enough to recover full protobuf type info
-    This holds for now (though the dev has to pass an additional mapping kind->protoType)
-    As an alternative, this info can be inferred during replay, from application context
-    */
-    google.protobuf.Any message = 4; // arbitrary protobuf of app-determined opeque type Kind
-    // used to link Async responses to their requests
-    int32 link_to_token = 5;
-    string str_message = 6;
-    int64  num_message = 7;
-    // change the name
-    string rr_debug_string = 8;
-    bytes bytes_message = 9;
-  }
-  
-  message OpequeBytes {
-    int32 kind = 1;
-    bytes message = 2; // arbitrary protobuf of app-determined opeque type Kind
-  }
-  
-  message OpequeString {
-    int32 kind = 1;
-    string message = 2; // arbitrary protobuf of app-determined opeque type Kind
-  }
-  
-  message RequestResponse {
-    string primary_key = 1;
-    bytes message = 2;
-    bytes error = 3;
-  }
+  Instead, the full message protobuf is serialized separately on file right
+  after the OpequeEntry block In replay the replayer reads the next block and
+  populates this Any field here which makes us to worry less about explicit type
+  conversions during replay (those are handled by trace parser)
 
-  message Empty{}
-  message NonEmpty{
-    int32 life = 42;
-  }
+  Note: this assumes recorded trace (kind info) is enough to recover full
+  protobuf type info This holds for now (though the dev has to pass an
+  additional mapping kind->protoType) As an alternative, this info can be
+  inferred during replay, from application context
+  */
+  google.protobuf.Any message =
+      4;  // arbitrary protobuf of app-determined opeque type Kind
+  // used to link Async responses to their requests
+  int32 link_to_token = 5;
+  string str_message = 6;
+  int64 num_message = 7;
+  // change the name
+  string rr_debug_string = 8;
+  bytes bytes_message = 9;
+}
 
-  message AirreplayKuduInboundTransferPB {
-    int32 size = 1;
-    bytes data = 2;
-  }
+message OpequeBytes {
+  int32 kind = 1;
+  bytes message = 2;  // arbitrary protobuf of app-determined opeque type Kind
+}
+
+message OpequeString {
+  int32 kind = 1;
+  string message = 2;  // arbitrary protobuf of app-determined opeque type Kind
+}
+
+message RequestResponse {
+  string primary_key = 1;
+  bytes message = 2;
+  bytes error = 3;
+}
+
+message Empty {}
+message NonEmpty {
+  int32 life = 42;
+}
+
+message AirreplayKuduInboundTransferPB {
+  int32 size = 1;
+  bytes data = 2;
+}

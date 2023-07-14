@@ -1,9 +1,9 @@
 #ifndef TRACE_H
 #define TRACE_H
+#include <atomic>
 #include <deque>
 #include <fstream>
 #include <thread>
-#include <atomic>
 
 #include "airreplay.pb.h"
 
@@ -36,13 +36,13 @@ class Trace {
   std::string tracename_;
   std::fstream *tracetxt_;
   std::fstream *tracebin_;
-  airreplay::OpequeEntry  *soft_consumed_;
+  airreplay::OpequeEntry *soft_consumed_;
 
   // partially parsed(proto::Any) trace events for replay
   std::deque<airreplay::OpequeEntry> traceEvents_;
 
   // the index of the next message to be recorded or replayed
-  int pos_  = 0;
+  int pos_ = 0;
   std::thread debug_thread_;
   // used by Trace destructor to terminate the debug thread
   std::atomic<bool> debug_thread_exit_ = false;
