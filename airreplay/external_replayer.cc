@@ -3,18 +3,31 @@
 namespace airreplay {
 
 void Airreplay::externalReplayerLoop() {
-  throw std::runtime_error("not implemented");
+  int pos = 0;
   while (true) {
-    // std::lock_guard lock(traceLock_);
-    if (!trace_.HasNext()) {
+    log("ExternalReplayer", "external replayer loop");
+    if (shutdown_) {
+      throw std::runtime_error("shutdown_ is true");
       return;
     }
-    // there is a deadlock here!! release traceLock_ before calling the hook
 
-    /*
-    event not popped from traceEvents_ because the hook will re-deliver
-    the message and appropriate RR method will be called so that will pop it
-    */
+    {
+      log("ExternalReplayer", "external replayer loop lock");
+      std::lock_guard lock(recordOrder_);
+      log("ExternalReplayer", "external replayer loop lock acquired");
+
+      if (!trace_.HasNext()) {
+        log("ExternalReplayer", "external replayer reach end of the trace");
+        return;
+      }
+      const airreplay::OpequeEntry &req = trace_.PeekNext(&pos);
+      if (MaybeReplayExternalRPCUnlocked(req)) {
+        log("replayed external RPC", "@" + pos);
+      } else {
+        log("did not replay external RPC", "@" + pos);
+      }
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(800));
   }
 }
 }  // namespace airreplay

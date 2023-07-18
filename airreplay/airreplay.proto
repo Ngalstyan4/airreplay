@@ -90,6 +90,7 @@ message OpequeEntry {
   // change the name
   string rr_debug_string = 8;
   bytes bytes_message = 9;
+  string connection_info = 10;
 }
 
 message OpequeBytes {

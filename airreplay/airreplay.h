@@ -1,5 +1,5 @@
-#ifndef AIRREPLAY_H
-#define AIRREPLAY_H
+#pragma once
+
 #include <google/protobuf/any.pb.h>
 
 #include <boost/function.hpp>  // AsyncRequest uses boost::function
@@ -12,32 +12,19 @@
 
 #include "airreplay.pb.h"
 #include "trace.h"
-// #include "kudu/rpc/rpc_controller.h"
-namespace kudu {
-namespace rpc {
-class OutboundCall;
-}  // namespace rpc
-}  // namespace kudu
 
 namespace airreplay {
 // todo:: drop const or even support moving later if need be
-using ReproducerFunction =
-    std::function<void(const google::protobuf::Message &msg)>;
+using ReproducerFunction = std::function<void(
+    const std::string &connection_info, const google::protobuf::Message &msg)>;
 using google::protobuf::uint64;
 
 enum ReservedMsgKinds {
   kInvalid,
   kDefault,
   kSaveRestore,
-  // the next two are used in RROutboundCallAsync
-  kOutboundRequest,
-  kInboundResponse,
-  // inbound requests and responses are recorded via RecordReplay and the
-  // application specifies their kind we know whether we should replay them or
-  // not based on availability of corresponding hook function so no special
-  // message kinds are necessary here for recording such events
 
-  kMaxReservedMsgKind  // should be last!
+  kMaxReservedMsgKind,  // should be last!
 };
 
 void log(const std::string &context, const std::string &msg);
@@ -47,6 +34,9 @@ class Airreplay {
   // recordings in the same app used for testing mainly
   Airreplay(std::string tracename, Mode mode);
   ~Airreplay();
+
+  std::string MessageKindName(int kind);
+  void RegisterMessageKindName(int kind, const std::string &name);
 
   int SaveRestore(const std::string &key, google::protobuf::Message &message);
   int SaveRestore(const std::string &key, std::string &message);
@@ -68,41 +58,15 @@ class Airreplay {
    *
    * Returns the index of the recorded request (=recordToken).
    */
-  int RecordReplay(const std::string &key,
-                   const google::protobuf::Message &message, int kind = 0);
+  int RecordReplay(const std::string &key, const std::string &connection_info,
+                   const google::protobuf::Message &message, int kind = 0, const std::string &debug_info = "");
 
   bool isReplay();
   void RegisterReproducers(std::map<int, ReproducerFunction> reproduers);
   void RegisterReproducer(int kind, ReproducerFunction reproducer);
 
-  std::function<void()> RROutboundCallAsync(
-      const std::string &method, const google::protobuf::Message &request,
-      google::protobuf::Message *response, std::function<void()> callback);
-
  private:
-  Mode rrmode_;
-  Trace trace_;
-
-  // mutex and vars protected by it
-  std::mutex recordOrder_;
-  std::map<int, std::function<void()> > pending_callbacks_;
-  std::vector<std::thread> running_callbacks_;
-
-  std::set<std::string> save_restore_keys_;
-  // ****************** below are only used in replay ******************
-
-  std::map<int, ReproducerFunction> hooks_;
-
-  std::function<void()> kUnreachableCallback_{
-      []() { std::runtime_error("must have been unreachable"); }};
-
-  bool MaybeReplayExternalRPCUnlocked(const airreplay::OpequeEntry &req_peek);
-  // Constructs and returns an opeque entry
-  airreplay::OpequeEntry NewOpequeEntry(
-      const std::string &debugstring, const google::protobuf::Message &request,
-      int kind, int linkToken = -1);
-
-  // this API is necessary for 2 reasons
+   // this API is necessary for 2 reasons
   // 1. unlike in go, here replayHooks are argumentless callbacks so the
   // replayer cannot pass the proto being replayed to the replay hook.
   // (replayHooks being argumentless is a design decision with its own
@@ -112,10 +76,55 @@ class Airreplay {
   int SaveRestoreInternal(const std::string &key, std::string *str_message,
                           uint64 *int_message,
                           google::protobuf::Message *proto_message);
+  Mode rrmode_;
+  Trace trace_;
+
+  std::map<int, std::string> userMsgKinds_;
+
+  // used to inform background threads about shutdown
+  bool shutdown_ = false;
+
+  // mutex and vars protected by it
+  std::mutex recordOrder_;
+  std::map<int, std::function<void()>> pending_callbacks_;
+  std::vector<std::thread> running_callbacks_;
+
+  std::set<std::string> save_restore_keys_;
+
+  // ****************** below are only used in replay ******************
+  bool MaybeReplayExternalRPCUnlocked(const airreplay::OpequeEntry &req_peek);
+  // Constructs and returns an opeque entry
+  airreplay::OpequeEntry NewOpequeEntry(
+      const std::string &debugstring, const google::protobuf::Message &request,
+      int kind, int linkToken = -1);
+
   void externalReplayerLoop();
+
+  std::map<int, ReproducerFunction> hooks_;
+  std::function<void()> kUnreachableCallback_{
+      []() { std::runtime_error("must have been unreachable"); }};
+
 };
 extern Airreplay *airr;
 
 }  // namespace airreplay
 
-#endif
+
+// the below are specific to kudu integration of AirReplay
+// could be in a kudu header but this makes dev easier so leaving it here for now
+namespace kudu {
+namespace rrsupport {
+
+enum KuduMsgKinds {
+  kOutboundRequest = 9,
+  kOutboundResponse = 10,
+  kInboundRequest = 11,
+  // the replay trigger is on this message type
+  kInboundResponse = 12,
+};
+
+extern std::mutex mockCallbackerMutex;
+extern std::map<std::string, std::function<void()>> mockCallbacker;
+
+}  // namespace rrsupport
+}  // namespace kudu
