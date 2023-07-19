@@ -1,14 +1,16 @@
 # AirReplay - Application Integrated Record-Replay
 
 AirReplay is a library that allows low-overhead recording of all non-determinism in a distributed system and enables bug reproduction.
-It works by providing an API to record inter-node RPC communication and intra-node non-determinism.
+It provides an API to record inter-node RPC communication and intra-node non-determinism.
 
 ## AirReplay API
 ```cpp
 Airreplay(std::string tracename, Mode mode); // mode = RECORD|REPLAY
 
 int RecordReplay(const std::string &connection_info
-                const google::protobuf::Message &message, int kind = 0, const std::string &debug_info = "");
+                const google::protobuf::Message &message, 
+                int kind = 0, 
+                const std::string &debug_info = "");
 bool isReplay(); // true if in REPLAY mode
 
 int SaveRestore(const std::string &key, google::protobuf::Message &message);
@@ -16,7 +18,7 @@ int SaveRestore(const std::string &key, std::string &message);
 int SaveRestore(const std::string &key, uint64 &message);
 ...
 
-void RegisterReproducers(std::map<int, ReproducerFunction> reproduers);
+void RegisterReproducers(std::map<int, ReproducerFunction> reproducers);
 
 ```
 The API above helps record each distributed system node into a separate per-node trace. The recorded trace enables replay of the distributed system node in isolation.
@@ -26,14 +28,13 @@ During replay, `RecordReplay` essentially enforces that concurrent messages are 
 It uses the recorded trace to know which message to expect next. When it receives the expected message, it advances the tracked position on the trace. If `RecordReplay` receives a call with an unexpected message, it blocks that call and continues waiting for the recorded message.
 
 Messages sent by the recorded node will be sent again during replay as replay runs the same application code as the recording.
-Since the replay of a node happens in isolation, incoming messages (messages that originate on other nodes) will not be sent to the application automatically. Those messages are still recorded on the trace, however, and the application developer just needs to provide a reproducer function
-via the `RegisterReproducers` API that will redeliver the recorded incoming messages to the application.
+Since the replay of a node happens in isolation, incoming messages (messages that originate on other nodes) will not be sent to the application automatically.  However, those messages are still recorded on the trace, and the application developer just needs to provide a reproducer function via the `RegisterReproducers` API that will redeliver the recorded incoming messages to the application.
 
 
 The above allows the application developer to record inter-node communication and intra-node message processing related non-determinism. The application may have other sources of non-determinism such as message timestamps, random IDs, initial snapshot (stating state) of the application etc. `SaveRestore` interface allows recording those with AirReplay trace. 
-`SaveRestore(key, msg)` checks for an entry at the current position of the trace with a matching `key`. If found, save restore populates `msg` reference.
+`SaveRestore(key, msg)` checks for an entry at the current position of the trace with a matching `key`. If found, `SaveRestore` populates `msg` reference.
 
-[^1]: Even when `RecordReplay` is called by a single main control loop in a dedicated thread, it is possible for messages to arrive out of order in replay as the main control loop may receive messages concurrently from various sources and determine a total processing order internally
+[^1]: Even when `RecordReplay` is called by a single main control loop in a dedicated thread, messages can arrive out of order in replay as the main control loop may receive messages concurrently from various sources and determine a total processing order internally
 
 
 ## Integrating AirReplay into a new application
@@ -43,10 +44,10 @@ Example integrations:
 - [kudu (WIP, replay still fails)](https://github.com/Ngalstyan4/kuduraft/compare/kudu...Ngalstyan4:kuduraft:kudu_airreplay?expand=1)
 
  Integration steps
- 1. Build AirReplay as outlined in the next section, to obtain the shared library
+ 1. Build AirReplay, as outlined in the next section, to obtain the shared library
  1. Modify your application build scripts to link to AirReplay [kudu (CMakeLists.txt)](https://github.com/Ngalstyan4/kuduraft/compare/kudu...Ngalstyan4:kuduraft:kudu_airreplay?expand=1#diff-20ff7a6c6cd70212e1413303ebd974ee5745be9c02ae55ae34017a7f9a85a6ecR114-R121)
  1. Initialize `airreplay::airr` global object at the start of your application.  
- Note: this has to be __before__ any point in time where you want to record/replay something [kudu (kserver.cc)](https://github.com/Ngalstyan4/kuduraft/compare/kudu...Ngalstyan4:kuduraft:kudu_airreplay?expand=1#diff-b843607bdc0af2f903cbf75e924ab230d7b4506fb83e23b27853611c8f04553aR148-R181)
+ Note: this has to be __before__ any point in time when you want to record/replay something [kudu (kserver.cc)](https://github.com/Ngalstyan4/kuduraft/compare/kudu...Ngalstyan4:kuduraft:kudu_airreplay?expand=1#diff-b843607bdc0af2f903cbf75e924ab230d7b4506fb83e23b27853611c8f04553aR148-R181)
  1. Record the initial state of the application via `SaveRestore`.  
  E.g. database snapshot at startup, randomly generated uuids [kudu (fs_manager.cc)](https://github.com/Ngalstyan4/kuduraft/compare/kudu...Ngalstyan4:kuduraft:kudu_airreplay?expand=1#diff-d99e64e9df4b9729be50977e7fc57f6b9d2c184d10b905345fe089fa1fd256c5R838) todo:: had to change sth here  
  1. Record with `RecordReplay`:
@@ -56,13 +57,13 @@ Example integrations:
     1. Outbound responses (responses to inbound requests) [kudu (inbound_call.cc)](https://github.com/Ngalstyan4/kuduraft/pull/1/files#diff-5a4f04732c39584b145034490dcc2602ed0b896a30c68089e7293584f1ac2c1bR207-R217)   
  1. Register inbound message reproducers with AirReplay 
     1. If your application has incoming message handlers that take RPC messages, you can simply register these handlers with AirReplay (etcd example to be linked), [kudu inbound requests (kserver.cc)](https://github.com/Ngalstyan4/kuduraft/compare/kudu...Ngalstyan4:kuduraft:kudu_airreplay?expand=1#diff-b843607bdc0af2f903cbf75e924ab230d7b4506fb83e23b27853611c8f04553aR196-R221)
-    1. Some applications do not have such handlers that directly consume a message. They instead interact with an internal event loop. The event loop calls app-provided callbacks and informs the application about a new message.
-    For example, in kudu, the application provides a callback when issuing an RPC request. The callback is called by an internal event loop when the response arrives.  
-    To integrate these applications with AirReplay, you need to make sure the callbacks provided by the application are called in replay.  
+    1. Some applications do not have handlers that directly consume an incoming RPC message. They instead interact with an internal event loop. The event loop calls app-provided callbacks and informs the application about the new message. In kud, for example, the application provides a callback when issuing an RPC request. The callback is specific to that one request and is called by an internal event loop when the response arrives.  
+    So during replay, the callback provided by the application’s request must be called in order to reproduce the response.  
+    To integrate these applications with AirReplay, you must ensure the callbacks provided by the application are called during replay.  
     So, you can do one of the following:
-        1. Run the same event loop in replay mode as well
+        1. Run the same event loop in replan mode as well
         1. Create a mock-event loop that stores callbacks and calls them when triggered by AirReplay via a message reproducer
-1. Convert internal non-deterministic events into incoming messages that can be recorded and then be retriggered with a custom registered reproducer (<ins>kudu WIP examples below</ins>)
+1. Convert internal non-deterministic events into incoming messages that can be recorded and retriggered with a custom registered reproducer (<ins>kudu WIP examples below</ins>)
     1. Timer expiration for heartbeats
     1. Lock acquisition order of key locks
  ---
