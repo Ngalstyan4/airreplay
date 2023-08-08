@@ -107,6 +107,15 @@ std::string compareMessages(const Message& message1, const Message& message2,
                " f2value:" + std::to_string(value2);
       }
 
+    } else if (fieldDescriptor->cpp_type() == FieldDescriptor::CPPTYPE_ENUM) {
+      int64_t value1 = reflection1->GetEnumValue(message1, fieldDescriptor);
+      int64_t value2 = reflection2->GetEnumValue(message2, fieldDescriptor);
+      if (value1 != value2) {
+        return "Field: " + fieldName + " - Value Mismatch" +
+               " f1value:" + std::to_string(value1) +
+               " f2value:" + std::to_string(value2);
+      }
+
     } else {
       return "Field: " + fieldName + ":typenum(" +
              std::to_string(fieldDescriptor->cpp_type()) +

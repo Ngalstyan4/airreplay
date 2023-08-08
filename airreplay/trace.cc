@@ -86,9 +86,18 @@ int Trace::Record(const airreplay::OpequeEntry &header) {
 #endif
   tracebin_->write((char *)&hdr_len, sizeof(size_t));
   header.SerializeToOstream(tracebin_);
-  // when perf becomes more important, will get rid of any recording above, will
-  // add the following and will reconstruct any in replay
-  // request.SerializeToOstream(tracebin);
+
+  tracetxt_->flush();
+  tracebin_->flush();
+  return pos_++;
+}
+
+int Trace::Record(const std::string &payload, const std::string &debug_string) {
+  assert(mode_ == Mode::kRecord);
+  *tracetxt_ << debug_string << std::endl;
+  size_t len = payload.size();
+  tracebin_->write((char *)&len, sizeof(size_t));
+  *tracebin_ << payload;
 
   tracetxt_->flush();
   tracebin_->flush();
@@ -99,6 +108,10 @@ bool Trace::HasNext() { return !traceEvents_.empty(); }
 
 const OpequeEntry &Trace::PeekNext(int *pos) {
   assert(mode_ == Mode::kReplay);
+  if (traceEvents_.empty()) {
+    std::cerr << "TRACE: \n\n GOT TO THE END OF THE TRACE \n\n";
+    throw std::runtime_error("trace is empty");
+  }
   assert(!traceEvents_.empty());
   *pos = pos_;
   return traceEvents_.front();

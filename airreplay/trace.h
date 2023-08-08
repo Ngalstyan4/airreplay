@@ -16,11 +16,16 @@ enum Mode { kRecord, kReplay };
 class Trace {
  public:
   Trace(std::string &traceprefix, Mode mode);
+  Trace(const Trace &) = delete;
+  Trace &operator=(const Trace &) = delete;
+  Trace(Trace &&) = delete;
+  Trace &operator=(Trace &&) = delete;
   ~Trace();
 
   std::string tracename();
   int pos();
   int Record(const airreplay::OpequeEntry &header);
+  int Record(const std::string &payload, const std::string &debug_string = "");
   bool HasNext();
   const OpequeEntry &PeekNext(int *pos);
   OpequeEntry ReplayNext(int *pos);

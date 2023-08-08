@@ -11,6 +11,7 @@
 #include <thread>
 
 #include "airreplay.pb.h"
+#include "mock_socket_traffic.h"
 #include "trace.h"
 
 namespace airreplay {
@@ -78,6 +79,7 @@ class Airreplay {
                           google::protobuf::Message *proto_message);
   Mode rrmode_;
   Trace trace_;
+  // SocketTraffic socketReplay;
 
   std::map<int, std::string> userMsgKinds_;
 
