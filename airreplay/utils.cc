@@ -94,28 +94,60 @@ std::string compareMessages(const Message& message1, const Message& message2,
            " m2:" + descriptor2->full_name() + errorCtx;
   }
 
-  std::unique_ptr<Message> defaultMsg(message1.New());
-  bool m1default = false;
-  if (defaultMsg->IsInitialized()) {
-    m1default = message1.SerializeAsString() == defaultMsg->SerializeAsString();
-  }
-  bool m2default = false;
-  if (defaultMsg->IsInitialized()) {
-    m2default = message2.SerializeAsString() == defaultMsg->SerializeAsString();
-  }
+  /*
+  <<<<<<< HEAD
+    std::unique_ptr<Message> defaultMsg(message1.New());
+    bool m1default = false;
+    if (defaultMsg->IsInitialized()) {
+      m1default = message1.SerializeAsString() ==
+  defaultMsg->SerializeAsString();
+    }
+    bool m2default = false;
+    if (defaultMsg->IsInitialized()) {
+      m2default = message2.SerializeAsString() ==
+  defaultMsg->SerializeAsString();
+    }
 
-  if (schemapb == nullptr) {
-    schemapb = FindSchemaField(message1);
-  }
+    if (schemapb == nullptr) {
+      schemapb = FindSchemaField(message1);
+    }
 
-  if (m1default != m2default) {
-    errorCtx +=
-        "\nWARNING: One of the messages has its default value and the other "
-        "does not. m1default:" +
-        std::to_string(m1default) + " m2default:" + std::to_string(m2default) +
-        errorCtx;
-  }
+    if (m1default != m2default) {
+      errorCtx +=
+          "\nWARNING: One of the messages has its default value and the other "
+          "does not. m1default:" +
+          std::to_string(m1default) + " m2default:" + std::to_string(m2default)
+  + errorCtx;
+  =======
+    if (message1.IsInitialized() != message2.IsInitialized()) {
+      errorCtx += "\nProto Message initialization Mismatch - m1initialized:" +
+                  std::to_string(message1.IsInitialized()) +
+                  " m2initialized:" + std::to_string(message2.IsInitialized());
+      return errorCtx;
+    }
 
+    // some messages may have no required fields. proto3 drops the concept
+    // alltogether. in those cases, it is still useful to check whether the
+    // message is equal to the default and report that information.
+    std::unique_ptr<Message> defaultMsg(message1.New());
+    // the check makes sure that it is ok to call SerializeAsString on all
+    // arguments AND the default message before proceeding
+    if (message1.IsInitialized() && message2.IsInitialized() &&
+        defaultMsg->IsInitialized()) {
+      bool m1default =
+          message1.SerializeAsString() == defaultMsg->SerializeAsString();
+      bool m2default =
+          message2.SerializeAsString() == defaultMsg->SerializeAsString();
+
+      if (m1default != m2default) {
+        errorCtx +=
+            "\nWARNING: One of the messages has its default value and the other
+  " "does not. m1default:" + std::to_string(m1default) + " m2default:" +
+  std::to_string(m2default) + errorCtx;
+      }
+  >>>>>>> f1c287d (Wip attempt at socket replay)
+    }
+  */
   int fieldCount = descriptor1->field_count();
   for (int i = 0; i < fieldCount; ++i) {
     const FieldDescriptor* fieldDescriptor = descriptor1->field(i);

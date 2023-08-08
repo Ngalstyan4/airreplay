@@ -32,7 +32,9 @@ void log(const std::string &context, const std::string &msg) {
 }
 
 Airreplay::Airreplay(std::string tracename, Mode mode)
-    : rrmode_(mode), trace_(tracename, mode) {
+    : rrmode_(mode),
+      trace_(tracename, mode),
+      socketReplay_("10.0.0.0", {7000, 7001}) {
   rrmode_ = mode;
 
   if (rrmode_ == Mode::kReplay) {
@@ -133,12 +135,13 @@ bool Airreplay::MaybeReplayExternalRPCUnlocked(
     return false;
   }
 
-  auto callback = [=]() {
-    hooks_[req_peek.kind()](req_peek.connection_info(), req_peek.message());
-  };
-  auto running_callback = std::thread(callback);
+  // auto callback = [=]() {
+  //   hooks_[req_peek.kind()](req_peek.connection_info(), req_peek.message());
+  // };
+  // auto running_callback = std::thread(callback);
   // q:: does std::move do something here?
-  running_callbacks_.push_back(std::move(running_callback));
+  // running_callbacks_.push_back(std::move(running_callback));
+  socketReplay_.SendTraffic(req_peek.connection_info(), req_peek);
   return true;
 }
 
@@ -152,7 +155,8 @@ int Airreplay::SaveRestore(const std::string &key, std::string &message) {
   return SaveRestoreInternal(key, &message, nullptr, nullptr);
 }
 
-int Airreplay::SaveRestore(const std::string &key, uint64_t &message, int bail_after) {
+int Airreplay::SaveRestore(const std::string &key, uint64_t &message,
+                           int bail_after) {
   return SaveRestoreInternal(key, nullptr, &message, nullptr, bail_after);
 }
 
@@ -284,7 +288,8 @@ int Airreplay::SaveRestoreInternal(const std::string &key,
     }
     if (bail_after == 0) return -1;
   }
-  CHECK(false) << "got to the end of the function without returning" << std::to_string(bail_after);
+  CHECK(false) << "got to the end of the function without returning"
+               << std::to_string(bail_after);
 }
 
 int Airreplay::RegisterThreadForSaveRestore(const std::string &key,
@@ -397,8 +402,15 @@ int Airreplay::RecordReplay(const std::string &key,
       // there must be bug or there is non-determinism in the application that
       // was not instrumented DCHECK prints a stack trace and helps me go patch
       // the non-determinism in the application
-      CHECK(num_replay_attempts_ < 400);
-      num_replay_attempts_++;
+      DCHECK(num_replay_attempts < 400);
+
+      if (num_replay_attempts > 20) {
+        DLOG(ERROR) << "Replay attempt " << num_replay_attempts
+                    << " for key: " << key << " kind: " << kind
+                    << " connection_info: " << connection_info
+                    << " message: " << message.ShortDebugString();
+      }
+      num_replay_attempts++;
 
       std::unique_lock lock(recordOrder_);
       const airreplay::OpequeEntry &req_peek = trace_.PeekNext(&pos);

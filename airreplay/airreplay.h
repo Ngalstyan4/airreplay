@@ -11,6 +11,7 @@
 #include <thread>
 
 #include "airreplay.pb.h"
+#include "mock_socket_traffic.h"
 #include "trace.h"
 
 namespace airreplay {
@@ -101,6 +102,7 @@ class Airreplay {
   Mode rrmode_;
   Trace trace_;
   int num_replay_attempts_ = 0;
+  SocketTraffic socketReplay_;
 
   std::map<int, std::string> userMsgKinds_;
 
