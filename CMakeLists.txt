@@ -102,9 +102,18 @@ set(AIRREPLAY_SRCS
   airreplay/airreplay.cc
   airreplay/external_replayer.cc
   airreplay/utils.cc
+  airreplay/socket.cc
+  airreplay/mock_socket_traffic.cc
 )
 add_library(airreplay SHARED ${AIRREPLAY_SRCS} ${PERSISTENT_VARS_PROTO_SRCS})
 target_link_libraries(airreplay airreplay_proto)
+
+# EXECUTIBLES mock-socket-replayer
+
+add_executable(socketreplay airreplay/socketreplay_main.cc)
+target_link_libraries(socketreplay airreplay airreplay_proto glog)
+
+# TESTS
 
 add_executable(serde-test airreplay/serde-test.cc airreplay/gtest_main.cc ${PERSISTENT_VARS_PROTO_SRCS})
 set_target_properties(serde-test PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)

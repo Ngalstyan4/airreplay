@@ -79,7 +79,7 @@ class Airreplay {
                           google::protobuf::Message *proto_message);
   Mode rrmode_;
   Trace trace_;
-  // SocketTraffic socketReplay;
+  SocketTraffic socketReplay_;
 
   std::map<int, std::string> userMsgKinds_;
 

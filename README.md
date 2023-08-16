@@ -24,7 +24,7 @@ void RegisterReproducers(std::map<int, ReproducerFunction> reproducers);
 The API above helps record each distributed system node into a separate per-node trace. The recorded trace enables replay of the distributed system node in isolation.
 
 `RecordReplay` records its arguments during recording into a totally ordered trace.
-During replay, `RecordReplay` essentially enforces that concurrent messages are processed in the same order they were processed during recording[^1].
+During replay, `RecordReplay` enforces that concurrent messages are processed in the same order they were processed during recording[^1].
 It uses the recorded trace to know which message to expect next. When it receives the expected message, it advances the tracked position on the trace. If `RecordReplay` receives a call with an unexpected message, it blocks that call and continues waiting for the recorded message.
 
 Messages sent by the recorded node will be sent again during replay as replay runs the same application code as the recording.
@@ -56,12 +56,13 @@ Example integrations:
     1. Inbound requests[ kudu (connection.cc)](https://github.com/Ngalstyan4/kuduraft/pull/1/files#diff-7a43ab0a4611f187f672845c106ae903eb81350fbf9b5b9aabeecfbcf12123e6R711-R718) 
     1. Outbound responses (responses to inbound requests) [kudu (inbound_call.cc)](https://github.com/Ngalstyan4/kuduraft/pull/1/files#diff-5a4f04732c39584b145034490dcc2602ed0b896a30c68089e7293584f1ac2c1bR207-R217)   
  1. Register inbound message reproducers with AirReplay 
-    1. If your application has incoming message handlers that take RPC messages, you can simply register these handlers with AirReplay (etcd example to be linked), [kudu inbound requests (kserver.cc)](https://github.com/Ngalstyan4/kuduraft/compare/kudu...Ngalstyan4:kuduraft:kudu_airreplay?expand=1#diff-b843607bdc0af2f903cbf75e924ab230d7b4506fb83e23b27853611c8f04553aR196-R221)
-    1. Some applications do not have handlers that directly consume an incoming RPC message. They instead interact with an internal event loop. The event loop calls app-provided callbacks and informs the application about the new message. In kud, for example, the application provides a callback when issuing an RPC request. The callback is specific to that one request and is called by an internal event loop when the response arrives.  
+    1. If your application has incoming message handlers that take RPC messages, you can register these handlers with AirReplay (etcd example to be linked), [kudu inbound requests (kserver.cc)](https://github.com/Ngalstyan4/kuduraft/compare/kudu...Ngalstyan4:kuduraft:kudu_airreplay?expand=1#diff-b843607bdc0af2f903cbf75e924ab230d7b4506fb83e23b27853611c8f04553aR196-R221)
+    1. Some applications do not have handlers that directly consume an incoming RPC message. When sending a request, these applications register a callback with an internal event loop. The event loop calls app-provided callbacks and informs the application about the new message. The callback is specific to that one request and is called by an internal event loop when the response arrives. 
+    So during replay, the callback provided by the application’s request must be called in order to reproduce the response
     So during replay, the callback provided by the application’s request must be called in order to reproduce the response.  
     To integrate these applications with AirReplay, you must ensure the callbacks provided by the application are called during replay.  
     So, you can do one of the following:
-        1. Run the same event loop in replan mode as well
+        1. Run the same event loop in replay mode as well
         1. Create a mock-event loop that stores callbacks and calls them when triggered by AirReplay via a message reproducer
 1. Convert internal non-deterministic events into incoming messages that can be recorded and retriggered with a custom registered reproducer (<ins>kudu WIP examples below</ins>)
     1. Timer expiration for heartbeats

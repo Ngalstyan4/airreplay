@@ -11,7 +11,7 @@ class Socket {
   Socket();
 
   Socket(Socket&& other) noexcept;
-  Socket& operator=(Socket&& other) noexcept = delete;
+  Socket& operator=(Socket&& other) noexcept;
   Socket& operator=(const Socket&) = delete;
   Socket(const Socket&) = delete;
   ~Socket();
@@ -23,7 +23,7 @@ class Socket {
   bool Accept(Socket& new_socket, sockaddr* remote = nullptr);
   bool Connect(const sockaddr_in& address);
   int Read(uint8_t* buffer, int length);
-  bool Write(const uint8_t* buffer, int length);
+  int Write(const uint8_t* buffer, int length);
   bool Close();
   bool Reset(int fd);
 

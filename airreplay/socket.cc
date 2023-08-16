@@ -82,7 +82,7 @@ bool Socket::Connect(const struct sockaddr_in& address) {
 
 // Read data from the socket
 int Socket::Read(uint8_t* buffer, int length) {
-  if (fd_ == -1) return false;
+  if (fd_ == -1) return -1;
 
   int n = ::read(fd_, buffer, length);
   std::cerr << "Socket: Read " << std::to_string(n) << " bytes" << std::endl;
@@ -90,11 +90,11 @@ int Socket::Read(uint8_t* buffer, int length) {
 }
 
 // Write data to the socket
-bool Socket::Write(const uint8_t* buffer, int length) {
+int Socket::Write(const uint8_t* buffer, int length) {
   if (fd_ == -1) return false;
 
   int n = ::write(fd_, buffer, length);
-  return n > 0;
+  return n;
 }
 
 bool Socket::Close() {

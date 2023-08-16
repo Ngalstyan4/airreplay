@@ -19,7 +19,9 @@ void log(const std::string &context, const std::string &msg) {
 }
 
 Airreplay::Airreplay(std::string tracename, Mode mode)
-    : rrmode_(mode), trace_(tracename, mode) {
+    : rrmode_(mode),
+      trace_(tracename, mode),
+      socketReplay_("10.0.0.0", {7000, 7001}) {
   rrmode_ = mode;
 
   if (rrmode_ == Mode::kReplay) {

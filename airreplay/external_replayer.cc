@@ -21,9 +21,9 @@ void Airreplay::externalReplayerLoop() {
       log("ExternalReplayer@" + std::to_string(pos), "external replayer loop");
 
       if (MaybeReplayExternalRPCUnlocked(req)) {
-        log("replayed external RPC", "@" + pos);
+        log("replayed external RPC", "@" + std::to_string(pos));
       } else {
-        log("did not replay external RPC", "@" + pos);
+        log("did not replay external RPC", "@" + std::to_string(pos));
       }
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(800));
