@@ -16,9 +16,39 @@ std::string compareMessages(const Message& message1, const Message& message2,
   const Reflection* reflection1 = message1.GetReflection();
   const Descriptor* descriptor2 = message2.GetDescriptor();
   const Reflection* reflection2 = message2.GetReflection();
+
+  std::string errorCtx =
+      "\nm1: " + message1.ShortDebugString() +
+      "descriptor: " + descriptor1->full_name() +
+      "field_count: " + std::to_string(descriptor1->field_count()) + "\n" +
+      "m2: " + message2.ShortDebugString() +
+      "descriptor: " + descriptor2->full_name() +
+      "field_count: " + std::to_string(descriptor2->field_count());
+
   if (descriptor1->full_name() != descriptor2->full_name()) {
     return "Descriptor Mismatch m1:" + descriptor1->full_name() +
-           " m2:" + descriptor2->full_name();
+           " m2:" + descriptor2->full_name() + errorCtx;
+  }
+
+  if (message1.IsInitialized() != message2.IsInitialized()) {
+    errorCtx += "\nProto Message initialization Mismatch - m1initialized:" +
+                std::to_string(message1.IsInitialized()) +
+                " m2initialized:" + std::to_string(message2.IsInitialized());
+    return errorCtx;
+  }
+
+  std::unique_ptr<Message> defaultMsg(message1.New());
+  bool m1default =
+      message1.SerializeAsString() == defaultMsg->SerializeAsString();
+  bool m2default =
+      message2.SerializeAsString() == defaultMsg->SerializeAsString();
+
+  if (m1default != m2default) {
+    errorCtx +=
+        "\nWARNING: One of the messages has its default value and the other "
+        "does not. m1default:" +
+        std::to_string(m1default) + " m2default:" + std::to_string(m2default) +
+        errorCtx;
   }
 
   int fieldCount = descriptor1->field_count();
@@ -35,7 +65,7 @@ std::string compareMessages(const Message& message1, const Message& message2,
       if (fieldSize1 != fieldSize2) {
         return "Field: " + fieldName + " - Size Mismatch" +
                " f1size:" + std::to_string(fieldSize1) +
-               " f2size:" + std::to_string(fieldSize2);
+               " f2size:" + std::to_string(fieldSize2) + errorCtx;
       } else {
         for (int j = 0; j < fieldSize1; ++j) {
           const Message& nestedMessage1 =
@@ -60,7 +90,7 @@ std::string compareMessages(const Message& message1, const Message& message2,
 
       if (value1 != value2) {
         return "Field: " + fieldName + " - Value Mismatch" +
-               " f1value:" + value1 + " f2value:" + value2;
+               " f1value:" + value1 + " f2value:" + value2 + errorCtx;
       }
     } else if (fieldDescriptor->cpp_type() == FieldDescriptor::CPPTYPE_FLOAT) {
       float value1 = reflection1->GetFloat(message1, fieldDescriptor);
@@ -69,7 +99,7 @@ std::string compareMessages(const Message& message1, const Message& message2,
       if (abs(value1 - value2) > 0.0000001) {
         return "Field: " + fieldName + " - Value Mismatch" +
                " f1value:" + std::to_string(value1) +
-               " f2value:" + std::to_string(value2);
+               " f2value:" + std::to_string(value2) + errorCtx;
       }
     } else if (fieldDescriptor->cpp_type() == FieldDescriptor::CPPTYPE_INT32) {
       int32_t value1 = reflection1->GetInt32(message1, fieldDescriptor);
@@ -77,7 +107,7 @@ std::string compareMessages(const Message& message1, const Message& message2,
       if (value1 != value2) {
         return "Field: " + fieldName + " - Value Mismatch" +
                " f1value:" + std::to_string(value1) +
-               " f2value:" + std::to_string(value2);
+               " f2value:" + std::to_string(value2) + errorCtx;
       }
 
     } else if (fieldDescriptor->cpp_type() == FieldDescriptor::CPPTYPE_UINT32) {
@@ -86,7 +116,7 @@ std::string compareMessages(const Message& message1, const Message& message2,
       if (value1 != value2) {
         return "Field: " + fieldName + " - Value Mismatch" +
                " f1value:" + std::to_string(value1) +
-               " f2value:" + std::to_string(value2);
+               " f2value:" + std::to_string(value2) + errorCtx;
       }
 
     } else if (fieldDescriptor->cpp_type() == FieldDescriptor::CPPTYPE_BOOL) {
@@ -95,7 +125,7 @@ std::string compareMessages(const Message& message1, const Message& message2,
       if (value1 != value2) {
         return "Field: " + fieldName + " - Value Mismatch" +
                " f1value:" + std::to_string(value1) +
-               " f2value:" + std::to_string(value2);
+               " f2value:" + std::to_string(value2) + errorCtx;
       }
 
     } else if (fieldDescriptor->cpp_type() == FieldDescriptor::CPPTYPE_INT64) {
@@ -104,13 +134,20 @@ std::string compareMessages(const Message& message1, const Message& message2,
       if (value1 != value2) {
         return "Field: " + fieldName + " - Value Mismatch" +
                " f1value:" + std::to_string(value1) +
-               " f2value:" + std::to_string(value2);
+               " f2value:" + std::to_string(value2) + errorCtx;
       }
-
+    } else if (fieldDescriptor->cpp_type() == FieldDescriptor::CPPTYPE_ENUM) {
+      int64_t value1 = reflection1->GetEnumValue(message1, fieldDescriptor);
+      int64_t value2 = reflection2->GetEnumValue(message2, fieldDescriptor);
+      if (value1 != value2) {
+        return "Field: " + fieldName + " - Value Mismatch" +
+               " f1value:" + std::to_string(value1) +
+               " f2value:" + std::to_string(value2) + errorCtx;
+      }
     } else {
       return "Field: " + fieldName + ":typenum(" +
              std::to_string(fieldDescriptor->cpp_type()) +
-             ") - type comparison not implemented";
+             ") - type comparison not implemented" + errorCtx;
     }
   }
   return "";
