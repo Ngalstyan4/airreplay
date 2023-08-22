@@ -38,7 +38,7 @@ class TraceGroup {
 
  private:
   std::vector<std::deque<airreplay::OpequeEntry>> traces_;
-  int pos_;
+  int pos_ = 0;
 
   bool NextIs(std::string debug_string_prefix, bool empty_is_ok);
 };
