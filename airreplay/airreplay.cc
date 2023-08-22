@@ -122,12 +122,13 @@ bool Airreplay::MaybeReplayExternalRPCUnlocked(
     return false;
   }
 
-  auto callback = [=]() {
-    hooks_[req_peek.kind()](req_peek.connection_info(), req_peek.message());
-  };
-  auto running_callback = std::thread(callback);
+  // auto callback = [=]() {
+  //   hooks_[req_peek.kind()](req_peek.connection_info(), req_peek.message());
+  // };
+  // auto running_callback = std::thread(callback);
   // q:: does std::move do something here?
-  running_callbacks_.push_back(std::move(running_callback));
+  // running_callbacks_.push_back(std::move(running_callback));
+  socketReplay_.SendTraffic(req_peek.connection_info(), req_peek.message());
   return true;
 }
 

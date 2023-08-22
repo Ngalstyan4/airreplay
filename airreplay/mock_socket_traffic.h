@@ -11,6 +11,10 @@
 #include "socket.h"
 #include "trace.h"
 
+void ReplayTrace(
+    Socket new_socket, airreplay::TraceGroup traces,
+    std::function<void(const std::string&, const std::string&)> Log =
+        [](std::string, std::string) {}, std::string log_prefix = "");
 class MockServer {
  public:
   MockServer(std::string hoststr, int port, airreplay::TraceGroup traces);
@@ -48,17 +52,22 @@ class MockServer {
 class SocketTraffic {
  public:
   SocketTraffic(std::string host, std::vector<int> ports);
-  void SendTraffic(int port, const uint8_t* buffer, int length);
+  // void SendTraffic(int port, const uint8_t* buffer, int length);
+  void SendTraffic(const std::string& connection_info,
+                   const google::protobuf::Message& msg);
   void ParseTraces(int serverPort, std::string filter);
 
  private:
   using Logger = std::function<void(const std::string&, const std::string&)>;
   using Port = int;
+  using ConnectionInfo = std::string;
 
   // std::map<int, std::thread> conn_threads_;
   // std::map<int, Socket> sockets_;
   std::map<Port, airreplay::TraceGroup> traceGroups_;
   std::map<Port, std::unique_ptr<MockServer>> servers_;
+  std::map<ConnectionInfo, Socket> connections_;
+  std::vector<std::thread> conn_threads_;
   std::ofstream log_file_;
 
   std::mutex log_lock_;
