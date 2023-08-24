@@ -88,11 +88,13 @@ void SocketTraffic::SendTraffic(const std::string& connection_info,
     airreplay::Trace trace(trace_pfix, airreplay::Mode::kReplay, false);
     trace.Coalesce();
     airreplay::TraceGroup trace_group({trace.traceEvents_});
-    conn_threads_.emplace_back(std::thread([this, new_socket = std::move(socket),
-                                traces = std::move(trace_group)]() mutable {
-      Log("SocketTraffic::SendTraffic", "Sending traffic from new thread ");
-      ReplayTrace(std::move(new_socket), traces, Log, "SocketTraffic::SendTraffic");
-    }));
+    conn_threads_.emplace_back(
+        std::thread([this, log_prefix = std::string(connection_info),
+                     new_socket = std::move(socket),
+                     traces = std::move(trace_group)]() mutable {
+          ReplayTrace(std::move(new_socket), traces, Log,
+                      "SocketTraffic::SendTraffic" + log_prefix);
+        }));
 
     connections_.emplace(connection_info, std::move(socket));
   }
@@ -189,27 +191,33 @@ MockServer::~MockServer() {
 
 void ReplayTrace(
     Socket new_socket, airreplay::TraceGroup traces,
-    std::function<void(const std::string&, const std::string&)> Log, std::string log_prefix) {
+    std::function<void(const std::string&, const std::string&)> Log,
+    std::string log_prefix) {
+  int nodelay = 42;
+  DCHECK(new_socket.SetTCPNoDelay(true));
+  DCHECK(new_socket.GetTCPNoDelay(&nodelay));
+  Log(log_prefix, "just set to nodelay" + std::to_string(nodelay));
   while (true) {
     uint8_t buffer[8192] = {0};
     while (traces.NextIsReadOrEmpty()) {
+      Log(log_prefix, "about to attempt reading...");
+
       int length = new_socket.Read(buffer, sizeof(buffer));
       traces.ConsumeRead(buffer, length);
       Log(log_prefix, "Read " + std::to_string(length) + " bytes");
     }
     while (traces.NextIsWrite()) {
       int trace_length = traces.NextCommonWrite(buffer, sizeof(buffer));
+      std::string s((char*)buffer, trace_length);
       Log(log_prefix,
-          "should write " + std::to_string(trace_length) + " bytes");
+          "should write " + std::to_string(trace_length) + " bytes(" + s + ")");
       int written_length = new_socket.Write(buffer, trace_length);
       Log(log_prefix, "wrote " + std::to_string(written_length) + " bytes");
       DCHECK(trace_length == written_length);
     }
 
     if (traces.AllEmpty()) {
-      Log(log_prefix,
-          "All traces are empty, socket replay done!Sleeping.....");
-      std::this_thread::sleep_for(std::chrono::seconds(50));
+      Log(log_prefix, "All traces are empty, socket replay done!Sleeping.....");
       Log(log_prefix, "Sleeping is over. closing socket");
       new_socket.Close();
       return;

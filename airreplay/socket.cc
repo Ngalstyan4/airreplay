@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <glog/logging.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -43,6 +44,33 @@ bool Socket::Bind(const struct sockaddr_in& address) {
   return true;
 }
 
+bool Socket::SetSockOpt(int level, int option, int value) {
+  if (::setsockopt(fd_, level, option, &value, sizeof(int)) == -1) {
+    std::cout << "Socket ERRNO" << std::to_string(errno);
+    return false;
+  }
+  return true;
+}
+
+bool Socket::GetSockOpt(int level, int option, int* value) {
+  socklen_t len = sizeof(int);
+  if (::getsockopt(fd_, level, option, value, &len) == -1) {
+    std::cout << "Socket ERRNO" << std::to_string(errno);
+    return false;
+  }
+  DCHECK(len == sizeof(int))
+      << "GetSockOpt optlen: expected " << std::to_string(sizeof(int))
+      << " got " << std::to_string(len);
+  return true;
+}
+
+bool Socket::SetTCPNoDelay(bool enabled) {
+  return SetSockOpt(IPPROTO_TCP, TCP_NODELAY, enabled ? 1 : 0);
+}
+
+bool Socket::GetTCPNoDelay(int* enabled) {
+  return GetSockOpt(IPPROTO_TCP, TCP_NODELAY, enabled);
+}
 // Start listening for incoming connections and limit the backlog queue of
 // incoming connections
 bool Socket::Listen(int backlog) {
@@ -67,6 +95,7 @@ bool Socket::Accept(Socket& new_socket, sockaddr* remote) {
   }
 
   new_socket.Reset(new_fd);
+  DCHECK(new_socket.SetTCPNoDelay(true));
   return true;
 }
 
@@ -76,6 +105,7 @@ bool Socket::Connect(const struct sockaddr_in& address) {
 
   if (::connect(fd_, (const sockaddr*)&address, sizeof(address)) == -1)
     return false;
+  DCHECK(SetTCPNoDelay(true));
 
   return true;
 }

@@ -29,6 +29,10 @@ class Socket {
 
   bool SetNonBlocking(bool enabled);
   bool IsNonBlocking(bool* is_non_blocking) const;
+  bool SetTCPNoDelay(bool enabled);
+  bool GetTCPNoDelay(int* enabled);
+  bool GetSockOpt(int level, int option, int* value);
+  bool SetSockOpt(int level, int option, int value);
 
   //  private:
   int fd_;
