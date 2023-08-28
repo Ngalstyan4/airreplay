@@ -2,6 +2,9 @@
 
 #include <glog/logging.h>
 
+#include <iomanip>
+#include <sstream>
+
 #include "airreplay.pb.h"
 
 namespace airreplay {
@@ -182,6 +185,8 @@ void Trace::DebugThread(const std::atomic<bool> &do_exit) {
   }
 }
 
+// todo::: I think this should only be done for reads to make sure
+//  we do not accidentally pass more data to the wire than needed
 void Trace::Coalesce() {
   assert(mode_ == Mode::kReplay);
   if (traceEvents_.empty()) {
@@ -311,6 +316,45 @@ void TraceGroup::ConsumeRead(uint8_t *buffer, int len) {
             << " to " << updated_traces.size() << std::endl;
   traces_ = std::move(updated_traces);
 }
+
+std::string toHex(const std::string &m) {
+  std::stringstream ss;
+  ss << std::setw(2) << std::setfill('0') << std::hex;
+  for (auto c : m) {
+    ss << (int)c;
+  }
+  return ss.str();
+}
+
+bool TraceGroup::StillBefore(const airreplay::OpequeEntry &msg) {
+  for (auto &trace : traces_) {
+    if (trace.empty()) {
+      LOG(INFO) << "TraceGroup::StillBefore: trace is empty" << std::endl;
+      continue;
+    }
+
+    bool in_curr_trace = false;
+    for (const auto &header : trace) {
+
+      if (header.bytes_message().find(msg.message().value().substr(
+              10, msg.message().value().size() - 12)) != std::string::npos) {
+        LOG(INFO) << "TraceGroup::StillBefore: header.rr_debug_string()=" +
+                         header.rr_debug_string() +
+                         " msg.rr_debug_string()=" + msg.rr_debug_string() +
+                         " msg_body=(" + msg.message().value() + ")" +
+                         " header_body=(" + header.bytes_message() + ")"
+                  << std::endl;
+        in_curr_trace = true;
+        break;
+      }
+    }
+    if (!in_curr_trace) {
+      return false;
+    }
+  }
+  return true;
+}
+
 int TraceGroup::NextCommonWrite(uint8_t *buffer, int buffer_len) {
   DCHECK(traces_.size() > 0);
   std::string msg = traces_.front().front().bytes_message();
@@ -336,8 +380,8 @@ int TraceGroup::NextCommonWrite(uint8_t *buffer, int buffer_len) {
                        " != msg.size()=" + std::to_string(msg.size())
                 << std::endl;
       throw std::runtime_error("trace is not a write of the same size" +
-      std::to_string(header.body_size()) + " vs " +
-      std::to_string(msg.size()));
+                               std::to_string(header.body_size()) + " vs " +
+                               std::to_string(msg.size()));
     }
 
     if (memcmp(header.bytes_message().data(), msg.data(), msg.size()) != 0) {

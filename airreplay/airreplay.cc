@@ -128,7 +128,7 @@ bool Airreplay::MaybeReplayExternalRPCUnlocked(
   // auto running_callback = std::thread(callback);
   // q:: does std::move do something here?
   // running_callbacks_.push_back(std::move(running_callback));
-  socketReplay_.SendTraffic(req_peek.connection_info(), req_peek.message());
+  socketReplay_.SendTraffic(req_peek.connection_info(), req_peek);
   return true;
 }
 

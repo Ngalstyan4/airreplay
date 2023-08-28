@@ -36,6 +36,8 @@ class TraceGroup {
   // NextIsWrite Call
   int NextCommonWrite(uint8_t *buffer, int buffer_len);
 
+  bool StillBefore(const airreplay::OpequeEntry &msg);
+
  private:
   std::vector<std::deque<airreplay::OpequeEntry>> traces_;
   int pos_ = 0;

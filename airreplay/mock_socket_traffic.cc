@@ -27,7 +27,7 @@ SocketTraffic::SocketTraffic(std::string hoststr, std::vector<int> ports)
 }
 
 void SocketTraffic::SendTraffic(const std::string& connection_info,
-                                const google::protobuf::Message& msg) {
+                                const airreplay::OpequeEntry& replay_until) {
   Socket socket;
   struct sockaddr_in address;
   struct in_addr host;
@@ -88,12 +88,12 @@ void SocketTraffic::SendTraffic(const std::string& connection_info,
     airreplay::Trace trace(trace_pfix, airreplay::Mode::kReplay, false);
     trace.Coalesce();
     airreplay::TraceGroup trace_group({trace.traceEvents_});
-    conn_threads_.emplace_back(
-        std::thread([this, log_prefix = std::string(connection_info),
-                     new_socket = std::move(socket),
-                     traces = std::move(trace_group)]() mutable {
+    conn_threads_.emplace_back(std::thread(
+        [this, replay_until, log_prefix = std::string(connection_info),
+         new_socket = std::move(socket),
+         traces = std::move(trace_group)]() mutable {
           ReplayTrace(std::move(new_socket), traces, Log,
-                      "SocketTraffic::SendTraffic" + log_prefix);
+                      "SocketTraffic::SendTraffic" + log_prefix, &replay_until);
         }));
 
     connections_.emplace(connection_info, std::move(socket));
@@ -192,12 +192,18 @@ MockServer::~MockServer() {
 void ReplayTrace(
     Socket new_socket, airreplay::TraceGroup traces,
     std::function<void(const std::string&, const std::string&)> Log,
-    std::string log_prefix) {
+    std::string log_prefix, const airreplay::OpequeEntry* replay_until) {
   int nodelay = 42;
   DCHECK(new_socket.SetTCPNoDelay(true));
   DCHECK(new_socket.GetTCPNoDelay(&nodelay));
   Log(log_prefix, "just set to nodelay" + std::to_string(nodelay));
   while (true) {
+    if (replay_until && !traces.StillBefore(*replay_until)) {
+      Log(log_prefix, "Reached replay_until");
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      continue;
+    }
+    Log(log_prefix, "SOMETHING WENT THRU, even after StillBefore");
     uint8_t buffer[8192] = {0};
     while (traces.NextIsReadOrEmpty()) {
       Log(log_prefix, "about to attempt reading...");
@@ -206,6 +212,13 @@ void ReplayTrace(
       traces.ConsumeRead(buffer, length);
       Log(log_prefix, "Read " + std::to_string(length) + " bytes");
     }
+
+    if (replay_until && !traces.StillBefore(*replay_until)) {
+      Log(log_prefix, "Reached replay_until");
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      continue;
+    }
+
     while (traces.NextIsWrite()) {
       int trace_length = traces.NextCommonWrite(buffer, sizeof(buffer));
       std::string s((char*)buffer, trace_length);
@@ -214,6 +227,12 @@ void ReplayTrace(
       int written_length = new_socket.Write(buffer, trace_length);
       Log(log_prefix, "wrote " + std::to_string(written_length) + " bytes");
       DCHECK(trace_length == written_length);
+    }
+
+    if (replay_until && !traces.StillBefore(*replay_until)) {
+      Log(log_prefix, "Reached replay_until");
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      continue;
     }
 
     if (traces.AllEmpty()) {

@@ -14,7 +14,9 @@
 void ReplayTrace(
     Socket new_socket, airreplay::TraceGroup traces,
     std::function<void(const std::string&, const std::string&)> Log =
-        [](std::string, std::string) {}, std::string log_prefix = "");
+        [](std::string, std::string) {},
+    std::string log_prefix = "",
+    const airreplay::OpequeEntry* replay_until = nullptr);
 class MockServer {
  public:
   MockServer(std::string hoststr, int port, airreplay::TraceGroup traces);
@@ -54,7 +56,7 @@ class SocketTraffic {
   SocketTraffic(std::string host, std::vector<int> ports);
   // void SendTraffic(int port, const uint8_t* buffer, int length);
   void SendTraffic(const std::string& connection_info,
-                   const google::protobuf::Message& msg);
+                   const airreplay::OpequeEntry& msg);
   void ParseTraces(int serverPort, std::string filter);
 
  private:
