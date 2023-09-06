@@ -211,7 +211,7 @@ int Airreplay::SaveRestoreInternal(const std::string &key,
             log("SaveRestoreInternal@" + std::to_string(pos),
                 "not the right kind. expected: " +
                     MessageKindName(kSaveRestore) + " got tracePeek:" +
-                    MessageKindName(req.kind()) + ")\t\tkey: " + key);
+                    MessageKindName(req.kind()) + ")\t\tcalled with: " + key);
           } else {
             log("SaveRestoreInternal@" + std::to_string(pos),
                 "saverestore: not the right key. expected: " +

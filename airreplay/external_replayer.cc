@@ -1,8 +1,13 @@
 #include "airreplay.h"
 
+#include <sys/prctl.h>
+#include <glog/logging.h>
+
 namespace airreplay {
 
 void Airreplay::externalReplayerLoop() {
+  int err = prctl(PR_SET_NAME, "AirReplayExternalReplayerLoop");
+  DCHECK(err >= 0 || err == EPERM) << "prctl(PR_SET_NAME) failed. errno: " << err;
   int pos = 0;
   while (true) {
     log("ExternalReplayer", "external replayer loop");
