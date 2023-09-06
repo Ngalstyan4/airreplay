@@ -315,8 +315,8 @@ int Airreplay::RecordReplay(const std::string &key,
             utils::compareMessageWithAny(message, req_peek.message());
         assert(mismatch != "");
 
-        // for some reason binary blobs were different but nothing different was found in proto level
-        // perhaps there are unused bytes in the
+        // for some reason binary blobs were different but nothing different was
+        // found in proto level perhaps there are unused bytes in the
         if (mismatch == utils::PROTO_COMPARE_FALSE_ALARM) {
           assert(req_peek.kind() == kind);
           assert(req_peek.rr_debug_string() == key);

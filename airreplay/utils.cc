@@ -75,7 +75,8 @@ std::string compareMessages(const Message& message1, const Message& message2,
   }
 
   if (!message1.IsInitialized() && !message2.IsInitialized()) {
-    // uninitialized values of same kind should map to the same set of bytes always (I think?)
+    // uninitialized values of same kind should map to the same set of bytes
+    // always (I think?)
     return "";
   }
   DCHECK(message1.IsInitialized() && message2.IsInitialized());

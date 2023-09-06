@@ -59,14 +59,17 @@ class Airreplay {
    * Returns the index of the recorded request (=recordToken).
    */
   int RecordReplay(const std::string &key, const std::string &connection_info,
-                   const google::protobuf::Message &message, int kind = 0, const std::string &debug_info = "");
+                   const google::protobuf::Message &message, int kind = 0,
+                   const std::string &debug_info = "");
 
   bool isReplay();
+
+  // ****************** the next two are only used in replay ******************
   void RegisterReproducers(std::map<int, ReproducerFunction> reproduers);
   void RegisterReproducer(int kind, ReproducerFunction reproducer);
 
  private:
-   // this API is necessary for 2 reasons
+  // this API is necessary for 2 reasons
   // 1. unlike in go, here replayHooks are argumentless callbacks so the
   // replayer cannot pass the proto being replayed to the replay hook.
   // (replayHooks being argumentless is a design decision with its own
@@ -104,15 +107,14 @@ class Airreplay {
   std::map<int, ReproducerFunction> hooks_;
   std::function<void()> kUnreachableCallback_{
       []() { std::runtime_error("must have been unreachable"); }};
-
 };
 extern Airreplay *airr;
 
 }  // namespace airreplay
 
-
 // the below are specific to kudu integration of AirReplay
-// could be in a kudu header but this makes dev easier so leaving it here for now
+// could be in a kudu header but this makes dev easier so leaving it here for
+// now
 namespace kudu {
 namespace rrsupport {
 
