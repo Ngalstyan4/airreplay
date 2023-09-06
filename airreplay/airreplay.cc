@@ -16,6 +16,7 @@ std::mutex log_mutex;
 void log(const std::string &context, const std::string &msg) {
   std::lock_guard<std::mutex> lock(log_mutex);
   std::cerr << context << ": " << msg << std::endl;
+  // std::cerr << utils::Backtrace() << std::endl;
 }
 
 Airreplay::Airreplay(std::string tracename, Mode mode)
@@ -161,7 +162,7 @@ int Airreplay::SaveRestoreInternal(const std::string &key,
       // to be fully replayed when the second one comes around. Would be good to
       // enforce the more subtle invariant for debugging but for now will just
       // have to remember to check for it
-      log("WARN: SaveRestore", "key " + key + " already saved");
+      // log("WARN: SaveRestore", "key " + key + " already saved");
     }
     save_restore_keys_.insert(key);
 
@@ -284,15 +285,14 @@ int Airreplay::RecordReplay(const std::string &key,
     }
     return trace_.Record(header);
   } else {
-    int num_replay_attempts = 0;
     int pos = -1;
     while (true) {
       // if I keep trying to replay the same message without making progres,
       // there must be bug or there is non-determinism in the application that
       // was not instrumented DCHECK prints a stack trace and helps me go patch
       // the non-determinism in the application
-      DCHECK(num_replay_attempts < 40);
-      num_replay_attempts++;
+      DCHECK(num_replay_attempts_ < 400);
+      num_replay_attempts_++;
 
       std::unique_lock lock(recordOrder_);
       const airreplay::OpequeEntry &req_peek = trace_.PeekNext(&pos);
@@ -314,9 +314,33 @@ int Airreplay::RecordReplay(const std::string &key,
         auto mismatch =
             utils::compareMessageWithAny(message, req_peek.message());
         assert(mismatch != "");
+
+        // for some reason binary blobs were different but nothing different was found in proto level
+        // perhaps there are unused bytes in the
+        if (mismatch == utils::PROTO_COMPARE_FALSE_ALARM) {
+          assert(req_peek.kind() == kind);
+          assert(req_peek.rr_debug_string() == key);
+          assert(req_peek.connection_info() == connection_info);
+
+          log("RecordReplay@" + std::to_string(pos),
+              "Just REPLAYED" + req_peek.ShortDebugString());
+          trace_.ConsumeHead(req_peek);
+          num_replay_attempts_ = 0;
+          assert(lock.owns_lock());
+          return pos;
+        }
+
         log("RecordReplay@" + std::to_string(pos),
-            "right kind and entry key and connection. wrong proto message. " +
-                mismatch);
+            "right kind and entry key(" + key +
+                ") and connection. wrong proto message. " + mismatch);
+        using namespace backward;
+        StackTrace st;
+        st.load_here(32);
+        Printer p;
+        p.object = true;
+        p.color_mode = ColorMode::always;
+        p.address = true;
+        p.print(st, stderr);
       } else {
         assert(req_peek.kind() == kind);
         assert(req_peek.rr_debug_string() == key);
@@ -326,12 +350,13 @@ int Airreplay::RecordReplay(const std::string &key,
         log("RecordReplay@" + std::to_string(pos),
             "Just REPLAYED" + req_peek.ShortDebugString());
         trace_.ConsumeHead(req_peek);
+        num_replay_attempts_ = 0;
         assert(lock.owns_lock());
         return pos;
       }
 
       lock.unlock();
-      std::this_thread::sleep_for(std::chrono::milliseconds(400));
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
       continue;
     }
   }

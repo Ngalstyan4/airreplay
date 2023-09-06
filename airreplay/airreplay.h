@@ -78,6 +78,7 @@ class Airreplay {
                           google::protobuf::Message *proto_message);
   Mode rrmode_;
   Trace trace_;
+  int num_replay_attempts_ = 0;
 
   std::map<int, std::string> userMsgKinds_;
 

@@ -23,11 +23,12 @@ void Airreplay::externalReplayerLoop() {
       const airreplay::OpequeEntry &req = trace_.PeekNext(&pos);
       if (MaybeReplayExternalRPCUnlocked(req)) {
         log("replayed external RPC", "@" + pos);
-      } else {
-        log("did not replay external RPC", "@" + pos);
+        continue;
       }
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(800));
+
+    log("did not replay external RPC", "@" + pos);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
 }
 }  // namespace airreplay
