@@ -30,6 +30,7 @@ enum ReservedMsgKinds {
 void log(const std::string &context, const std::string &msg);
 class Airreplay {
  public:
+  using thread_id = uint64;
   // same as the static interface below but allows for multiple independent
   // recordings in the same app used for testing mainly
   Airreplay(std::string tracename, Mode mode);
@@ -40,21 +41,34 @@ class Airreplay {
 
   int SaveRestore(const std::string &key, google::protobuf::Message &message);
   int SaveRestore(const std::string &key, std::string &message);
-  int SaveRestore(const std::string &key, uint64 &message);
+  int SaveRestore(const std::string &key, uint64_t &message);
+  int SaveRestore(const std::string &key, int64_t &message);
+
+  int RegisterThreadForSaveRestore(const std::string &key, const thread_id tid);
+  // note that unlike SaveRestore, no unique-ish key is required here (-ish,
+  // because the unique key is not that unique in SaveRestore) key is required
+  // the caller can still provide an optional debug_string that will appear in
+  // the txt trace output which could help in debugging
+  // N.B. tid passed here must have previously been registered via
+  // RegisterThreadForSaveRestore
+  int SaveRestorePerThread(const thread_id tid, int64_t &message,
+                           const std::string &debug_string = "");
+  int SaveRestorePerThread(const thread_id tid, uint64_t &message,
+                           const std::string &debug_string = "");
 
   /**
-   * This is the main interface applications use to integrate record/replay into
-   * them The interface processes the pair (message, kind). During recording it
-   * saves its arguments into the binary trace file. During replay it checks
-   * that the passed arguments are at the current head of the recorded trace. If
-   * this fails, the interface blocks the caller until this becomes the case. If
-   * this never becomes the case, the recorded execution and the current replay
-   * have divereged.
+   * This is the main interface applications use to integrate record/replay
+   * into them The interface processes the pair (message, kind). During
+   * recording it saves its arguments into the binary trace file. During
+   * replay it checks that the passed arguments are at the current head of
+   * the recorded trace. If this fails, the interface blocks the caller
+   * until this becomes the case. If this never becomes the case, the
+   * recorded execution and the current replay have divereged.
    *
-   *  If the replay has not diverged, rr looks to see whether there are other
-   * requests after the current one which have a "kind" such that the system
-   * should reproduce them If so, rr calls appropriate reproduction functions
-   * (see more in RegisterReproducers)
+   *  If the replay has not diverged, rr looks to see whether there are
+   * other requests after the current one which have a "kind" such that the
+   * system should reproduce them If so, rr calls appropriate reproduction
+   * functions (see more in RegisterReproducers)
    *
    * Returns the index of the recorded request (=recordToken).
    */
@@ -104,6 +118,12 @@ class Airreplay {
 
   void externalReplayerLoop();
 
+  // maps replay runtime thread ids back to the corresponding recorded
+  // thread ids.
+  // individual per-thread SaveRestores will only have the replay runtime ones
+  // and this will be used to convert them back to a value that can be looked up
+  // on the recorded trace
+  std::map<thread_id, thread_id> thread_id_map_;
   std::map<int, ReproducerFunction> hooks_;
   std::function<void()> kUnreachableCallback_{
       []() { std::runtime_error("must have been unreachable"); }};

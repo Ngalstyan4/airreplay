@@ -140,8 +140,16 @@ int Airreplay::SaveRestore(const std::string &key, std::string &message) {
   return SaveRestoreInternal(key, &message, nullptr, nullptr);
 }
 
-int Airreplay::SaveRestore(const std::string &key, uint64 &message) {
+int Airreplay::SaveRestore(const std::string &key, uint64_t &message) {
   return SaveRestoreInternal(key, nullptr, &message, nullptr);
+}
+
+int Airreplay::SaveRestore(const std::string &key, int64_t &message) {
+  // todo:: actually write a generic function that works for various types
+  uint64 message_mut_copy = message;
+  int ret = SaveRestoreInternal(key, nullptr, &message_mut_copy, nullptr);
+  message = message_mut_copy;
+  return ret;
 }
 
 int Airreplay::SaveRestoreInternal(const std::string &key,
@@ -254,6 +262,67 @@ int Airreplay::SaveRestoreInternal(const std::string &key,
       return pos;
     }
   }
+}
+
+int Airreplay::RegisterThreadForSaveRestore(const std::string &key,
+                                            const thread_id tid) {
+  thread_id tid_mut_copy = tid;
+  // we also maintain the mapping during recording so we can ignore any calls to
+  // per-thread SaveRestore before the thread is registered. THis is an
+  // unintuitive hack and should be actually thought out once this works
+  DCHECK(thread_id_map_.find(tid) == thread_id_map_.end());
+  thread_id_map_[tid] = tid_mut_copy;
+  int ret = SaveRestore(key, tid_mut_copy);
+  if (rrmode_ == Mode::kReplay) {
+    // after SaveRestore, tid_mut_copy will store the tid this thread
+    // had during recording.
+    // tid is the thread id it has during replay
+    thread_id_map_[tid] = tid_mut_copy;
+  }
+  return ret;
+}
+
+int Airreplay::SaveRestorePerThread(const thread_id tid, int64 &message,
+                                    const std::string &debug_string) {
+  uint64 res = message;
+  int ret = SaveRestorePerThread(tid, res, debug_string);
+  message = res;
+  return ret;
+}
+
+int Airreplay::SaveRestorePerThread(const thread_id tid, uint64 &message,
+                                    const std::string &debug_string) {
+  // todo:: do I need to hold any locks from here on?
+  thread_id tid_on_trace = tid;
+
+  if (thread_id_map_.find(tid) == thread_id_map_.end()) {
+    log("WARNINGGGGG: SaveRestorePerThread",
+        "tid=" + std::to_string(tid) + " not registered for SaveRestore Yet");
+    return 0;
+  }
+
+  if (rrmode_ == Mode::kReplay) {
+    std::string current_mapping;
+    for (auto &kv : thread_id_map_) {
+      current_mapping +=
+          std::to_string(kv.first) + "->" + std::to_string(kv.second) + " ";
+    }
+    // DCHECK(thread_id_map_.find(tid) != thread_id_map_.end())
+    //     << "tid=" << tid << " not found. current_map: " << current_mapping;
+    // todo:: it should be DCHECK here
+    if (thread_id_map_.find(tid) == thread_id_map_.end()) {
+      log("WARNINGGGGG: SaveRestorePerThread",
+          "tid=" + std::to_string(tid) +
+              " not found. current_map: " + current_mapping);
+      return 0;
+    }
+
+    tid_on_trace = thread_id_map_[tid];
+  }
+
+  return SaveRestore("PerThreadSaveRestore_" + debug_string + "_" +
+                         std::to_string(tid_on_trace),
+                     message);
 }
 
 // for incoming requests
