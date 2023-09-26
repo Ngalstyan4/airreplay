@@ -52,9 +52,9 @@ class Airreplay {
   // N.B. tid passed here must have previously been registered via
   // RegisterThreadForSaveRestore
   int SaveRestorePerThread(const thread_id tid, int64_t &message,
-                           const std::string &debug_string = "");
+                           const std::string &debug_string = "", bool optional = false);
   int SaveRestorePerThread(const thread_id tid, uint64_t &message,
-                           const std::string &debug_string = "");
+                           const std::string &debug_string = "", bool optional = false);
 
   /**
    * This is the main interface applications use to integrate record/replay

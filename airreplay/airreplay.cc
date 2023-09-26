@@ -10,7 +10,7 @@
 #include "utils.h"
 
 namespace airreplay {
-Airreplay *airr;
+Airreplay *airr = nullptr;
 std::mutex log_mutex;
 
 void log(const std::string &context, const std::string &msg) {
@@ -270,7 +270,7 @@ int Airreplay::RegisterThreadForSaveRestore(const std::string &key,
   // we also maintain the mapping during recording so we can ignore any calls to
   // per-thread SaveRestore before the thread is registered. THis is an
   // unintuitive hack and should be actually thought out once this works
-  DCHECK(thread_id_map_.find(tid) == thread_id_map_.end());
+  CHECK(thread_id_map_.find(tid) == thread_id_map_.end());
   thread_id_map_[tid] = tid_mut_copy;
   int ret = SaveRestore(key, tid_mut_copy);
   if (rrmode_ == Mode::kReplay) {
@@ -283,40 +283,49 @@ int Airreplay::RegisterThreadForSaveRestore(const std::string &key,
 }
 
 int Airreplay::SaveRestorePerThread(const thread_id tid, int64 &message,
-                                    const std::string &debug_string) {
+                                    const std::string &debug_string,
+                                    bool optional) {
   uint64 res = message;
-  int ret = SaveRestorePerThread(tid, res, debug_string);
+  int ret = SaveRestorePerThread(tid, res, debug_string, optional);
   message = res;
   return ret;
 }
 
 int Airreplay::SaveRestorePerThread(const thread_id tid, uint64 &message,
-                                    const std::string &debug_string) {
+                                    const std::string &debug_string,
+                                    bool optional) {
+  CHECK(this != nullptr);
+
+  // CHECK(kudu::Thread::current_thread() != nullptr)
+  //     << "check current thread is null";
+  // CHECK(kudu::Thread::current_thread()->tid() == tid);
   // todo:: do I need to hold any locks from here on?
   thread_id tid_on_trace = tid;
+  std::string current_mapping;
+  for (const auto &kv : thread_id_map_) {
+    current_mapping +=
+        std::to_string(kv.first) + "->" + std::to_string(kv.second) + " ";
+  }
+
+  if (kudu::Thread::current_thread() && (kudu::Thread::current_thread()->name().find("-negotiator") !=
+          std::string::npos ||
+      kudu::Thread::current_thread()->name().find("acceptor") !=
+          std::string::npos)) {
+    // ignore negotiator threads since those do not do anything during replay
+    // ignore acceptor threads for the same reason
+    return 0;
+  }
+
+  CHECK(optional || (thread_id_map_.find(tid) != thread_id_map_.end()))
+      << " check tid=" << tid
+      << "(name=" << (kudu::Thread::current_thread() ? kudu::Thread::current_thread()->name() : "no_kudu_current_thread")
+      << ") not found. current_map: " << current_mapping;
 
   if (thread_id_map_.find(tid) == thread_id_map_.end()) {
-    log("WARNINGGGGG: SaveRestorePerThread",
-        "tid=" + std::to_string(tid) + " not registered for SaveRestore Yet");
     return 0;
   }
 
   if (rrmode_ == Mode::kReplay) {
-    std::string current_mapping;
-    for (auto &kv : thread_id_map_) {
-      current_mapping +=
-          std::to_string(kv.first) + "->" + std::to_string(kv.second) + " ";
-    }
-    // DCHECK(thread_id_map_.find(tid) != thread_id_map_.end())
-    //     << "tid=" << tid << " not found. current_map: " << current_mapping;
-    // todo:: it should be DCHECK here
-    if (thread_id_map_.find(tid) == thread_id_map_.end()) {
-      log("WARNINGGGGG: SaveRestorePerThread",
-          "tid=" + std::to_string(tid) +
-              " not found. current_map: " + current_mapping);
-      return 0;
-    }
-
     tid_on_trace = thread_id_map_[tid];
   }
 
