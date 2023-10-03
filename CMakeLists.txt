@@ -106,6 +106,18 @@ set(AIRREPLAY_SRCS
 add_library(airreplay SHARED ${AIRREPLAY_SRCS} ${PERSISTENT_VARS_PROTO_SRCS})
 target_link_libraries(airreplay airreplay_proto)
 
+# These are for backtrace.hpp. Make sure GNU/binutils are installed (apt-get install binutils-dev)
+target_link_libraries(airreplay bfd dl)
+
+if (KUDU_HOME)
+  # needed for sparsehash/dense_hash_map, required in schema.h
+  target_include_directories(airreplay PUBLIC "${KUDU_HOME}/thirdparty/installed/common/include")
+  target_include_directories(airreplay PUBLIC "${KUDU_HOME}/src")
+  # aaa this is bad.
+  target_include_directories(airreplay PUBLIC "${KUDU_HOME}/build/debug/src")
+endif()
+
+
 add_executable(serde-test airreplay/serde-test.cc airreplay/gtest_main.cc ${PERSISTENT_VARS_PROTO_SRCS})
 set_target_properties(serde-test PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
 add_dependencies(serde-test not-up-to-date)

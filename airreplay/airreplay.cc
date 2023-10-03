@@ -7,9 +7,21 @@
 #include <thread>
 
 #include "airreplay.pb.h"
+
+#define BACKWARD_HAS_BFD 1
+#include "backward.hpp"
 #include "utils.h"
 
 namespace airreplay {
+
+template <typename T>
+typename std::enable_if<std::is_same<T, int64_t>::value ||
+                            std::is_same<T, uint64_t>::value,
+                        T>::type
+addNumbers(T a, T b) {
+  return a + b;
+}
+
 Airreplay *airr = nullptr;
 std::mutex log_mutex;
 

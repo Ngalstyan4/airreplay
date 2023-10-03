@@ -17,6 +17,7 @@ std::string compareMessages(const google::protobuf::Message& message1,
 std::string compareMessageWithAny(const google::protobuf::Message& message1,
                                   const google::protobuf::Any& any);
 
+std::string Backtrace(int skip = 1);
 bool isAscii(const std::string& s);
 }  // namespace utils
 }  // namespace airreplay
