@@ -119,12 +119,15 @@ if (KUDU_HOME)
   target_include_directories(airreplay PUBLIC "${KUDU_HOME}/build/debug/src")
 endif()
 
+<<<<<<< HEAD
 # EXECUTIBLES mock-socket-replayer
 
 add_executable(socketreplay airreplay/socketreplay_main.cc)
 target_link_libraries(socketreplay airreplay airreplay_proto glog)
 
 # TESTS
+=======
+>>>>>>> 2599ed9 ([temporary] commit backtrace to allow rebase)
 
 add_executable(serde-test airreplay/serde-test.cc airreplay/gtest_main.cc ${PERSISTENT_VARS_PROTO_SRCS})
 set_target_properties(serde-test PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
