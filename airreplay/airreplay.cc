@@ -402,15 +402,15 @@ int Airreplay::RecordReplay(const std::string &key,
       // there must be bug or there is non-determinism in the application that
       // was not instrumented DCHECK prints a stack trace and helps me go patch
       // the non-determinism in the application
-      DCHECK(num_replay_attempts < 400);
+      DCHECK(num_replay_attempts_ < 400);
 
-      if (num_replay_attempts > 20) {
-        DLOG(ERROR) << "Replay attempt " << num_replay_attempts
+      if (num_replay_attempts_ > 20) {
+        DLOG(ERROR) << "Replay attempt " << num_replay_attempts_
                     << " for key: " << key << " kind: " << kind
                     << " connection_info: " << connection_info
                     << " message: " << message.ShortDebugString();
       }
-      num_replay_attempts++;
+      num_replay_attempts_++;
 
       std::unique_lock lock(recordOrder_);
       const airreplay::OpequeEntry &req_peek = trace_.PeekNext(&pos);
