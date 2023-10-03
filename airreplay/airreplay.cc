@@ -140,22 +140,29 @@ int Airreplay::SaveRestore(const std::string &key, std::string &message) {
   return SaveRestoreInternal(key, &message, nullptr, nullptr);
 }
 
-int Airreplay::SaveRestore(const std::string &key, uint64_t &message) {
-  return SaveRestoreInternal(key, nullptr, &message, nullptr);
+int Airreplay::SaveRestore(const std::string &key, uint64_t &message, int bail_after) {
+  return SaveRestoreInternal(key, nullptr, &message, nullptr, bail_after);
 }
 
 int Airreplay::SaveRestore(const std::string &key, int64_t &message) {
   // todo:: actually write a generic function that works for various types
   uint64 message_mut_copy = message;
   int ret = SaveRestoreInternal(key, nullptr, &message_mut_copy, nullptr);
+  DCHECK(ret != -1);
   message = message_mut_copy;
   return ret;
+}
+
+int Airreplay::MaybeSaveRestore(const std::string &key, uint64_t &message) {
+  return SaveRestoreInternal(key, nullptr, &message, nullptr,
+                             /*bail after*/ 100);
 }
 
 int Airreplay::SaveRestoreInternal(const std::string &key,
                                    std::string *str_message,
                                    uint64 *int_message,
-                                   google::protobuf::Message *proto_message) {
+                                   google::protobuf::Message *proto_message,
+                                   int bail_after) {
   // exactly one type of pointer can be saved/restored per call
   assert((str_message != nullptr) + (int_message != nullptr) +
              (proto_message != nullptr) ==
@@ -208,7 +215,9 @@ int Airreplay::SaveRestoreInternal(const std::string &key,
     return trace_.Record(header);
   } else {
     int pos = -1;
-    while (true) {
+    while (bail_after < 0 || --bail_after > 0) {
+      CHECK(bail_after < 400 && num_replay_attempts_ < 400);
+      num_replay_attempts_++;
       std::unique_lock lock(recordOrder_);
 
       const airreplay::OpequeEntry &req = trace_.PeekNext(&pos);
@@ -261,7 +270,9 @@ int Airreplay::SaveRestoreInternal(const std::string &key,
       assert(lock.owns_lock());
       return pos;
     }
+    if (bail_after == 0) return -1;
   }
+  CHECK(false) << "got to the end of the function without returning" << std::to_string(bail_after);
 }
 
 int Airreplay::RegisterThreadForSaveRestore(const std::string &key,
@@ -284,18 +295,20 @@ int Airreplay::RegisterThreadForSaveRestore(const std::string &key,
 
 int Airreplay::SaveRestorePerThread(const thread_id tid, int64 &message,
                                     const std::string &debug_string,
-                                    bool optional) {
+                                    bool optional, int bail_after) {
   uint64 res = message;
-  int ret = SaveRestorePerThread(tid, res, debug_string, optional);
+  int ret = SaveRestorePerThread(tid, res, debug_string, optional, bail_after);
   message = res;
   return ret;
 }
 
 int Airreplay::SaveRestorePerThread(const thread_id tid, uint64 &message,
                                     const std::string &debug_string,
-                                    bool optional) {
+                                    bool optional, int bail_after) {
   CHECK(this != nullptr);
-
+  if (bail_after != -1) {
+    CHECK(!optional);
+  }
   // CHECK(kudu::Thread::current_thread() != nullptr)
   //     << "check current thread is null";
   // CHECK(kudu::Thread::current_thread()->tid() == tid);
@@ -307,22 +320,25 @@ int Airreplay::SaveRestorePerThread(const thread_id tid, uint64 &message,
         std::to_string(kv.first) + "->" + std::to_string(kv.second) + " ";
   }
 
-  if (kudu::Thread::current_thread() && (kudu::Thread::current_thread()->name().find("-negotiator") !=
-          std::string::npos ||
-      kudu::Thread::current_thread()->name().find("acceptor") !=
-          std::string::npos)) {
+  if (kudu::Thread::current_thread() &&
+      (kudu::Thread::current_thread()->name().find("-negotiator") !=
+           std::string::npos ||
+       kudu::Thread::current_thread()->name().find("acceptor") !=
+           std::string::npos)) {
     // ignore negotiator threads since those do not do anything during replay
     // ignore acceptor threads for the same reason
-    return 0;
+    return -1;
   }
 
   CHECK(optional || (thread_id_map_.find(tid) != thread_id_map_.end()))
-      << " check tid=" << tid
-      << "(name=" << (kudu::Thread::current_thread() ? kudu::Thread::current_thread()->name() : "no_kudu_current_thread")
+      << " check tid=" << tid << "(name="
+      << (kudu::Thread::current_thread()
+              ? kudu::Thread::current_thread()->name()
+              : "no_kudu_current_thread")
       << ") not found. current_map: " << current_mapping;
 
   if (thread_id_map_.find(tid) == thread_id_map_.end()) {
-    return 0;
+    return -1;
   }
 
   if (rrmode_ == Mode::kReplay) {
@@ -331,7 +347,7 @@ int Airreplay::SaveRestorePerThread(const thread_id tid, uint64 &message,
 
   return SaveRestore("PerThreadSaveRestore_" + debug_string + "_" +
                          std::to_string(tid_on_trace),
-                     message);
+                     message, bail_after);
 }
 
 // for incoming requests
@@ -369,7 +385,7 @@ int Airreplay::RecordReplay(const std::string &key,
       // there must be bug or there is non-determinism in the application that
       // was not instrumented DCHECK prints a stack trace and helps me go patch
       // the non-determinism in the application
-      DCHECK(num_replay_attempts_ < 400);
+      CHECK(num_replay_attempts_ < 400);
       num_replay_attempts_++;
 
       std::unique_lock lock(recordOrder_);

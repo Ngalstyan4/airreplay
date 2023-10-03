@@ -41,8 +41,10 @@ class Airreplay {
 
   int SaveRestore(const std::string &key, google::protobuf::Message &message);
   int SaveRestore(const std::string &key, std::string &message);
-  int SaveRestore(const std::string &key, uint64_t &message);
+  int SaveRestore(const std::string &key, uint64_t &message, int bail_after = -1);
   int SaveRestore(const std::string &key, int64_t &message);
+
+  int MaybeSaveRestore(const std::string &key, uint64_t &message);
 
   int RegisterThreadForSaveRestore(const std::string &key, const thread_id tid);
   // note that unlike SaveRestore, no unique-ish key is required here (-ish,
@@ -52,9 +54,11 @@ class Airreplay {
   // N.B. tid passed here must have previously been registered via
   // RegisterThreadForSaveRestore
   int SaveRestorePerThread(const thread_id tid, int64_t &message,
-                           const std::string &debug_string = "", bool optional = false);
+                           const std::string &debug_string = "",
+                           bool optional = false, int bail_after = -1);
   int SaveRestorePerThread(const thread_id tid, uint64_t &message,
-                           const std::string &debug_string = "", bool optional = false);
+                           const std::string &debug_string = "",
+                           bool optional = false, int bail_after = -1);
 
   /**
    * This is the main interface applications use to integrate record/replay
@@ -92,7 +96,8 @@ class Airreplay {
   // protobufs.
   int SaveRestoreInternal(const std::string &key, std::string *str_message,
                           uint64 *int_message,
-                          google::protobuf::Message *proto_message);
+                          google::protobuf::Message *proto_message,
+                          int bail_after = -1);
   Mode rrmode_;
   Trace trace_;
   int num_replay_attempts_ = 0;
