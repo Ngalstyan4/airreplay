@@ -40,7 +40,45 @@ if (KUDU_HOME)
   set(Protobuf_PROTOC_LIBRARY_RELEASE "${PROTOBUF_PREFIX}/lib/libprotoc.a")
 endif()
 
+
+if (NOT KUDU_HOME)
+    ####################################### Taken from /home/narek/kudu_workspace/AirReplay/grpc/examples/cpp/cmake/common.cmake ###########
+    # This branch assumes that gRPC and all its dependencies are already installed
+    # on this system, so they can be located by find_package().
+
+    # Find Protobuf installation
+    # Looks for protobuf-config.cmake file installed by Protobuf's cmake installation.
+    option(protobuf_MODULE_COMPATIBLE TRUE)
+    find_package(Protobuf CONFIG REQUIRED)
+    message(STATUS "Using protobuf ${Protobuf_VERSION}")
+
+    set(_PROTOBUF_LIBPROTOBUF protobuf::libprotobuf)
+    set(_REFLECTION gRPC::grpc++_reflection)
+    if(CMAKE_CROSSCOMPILING)
+      find_program(_PROTOBUF_PROTOC protoc)
+    else()
+      set(_PROTOBUF_PROTOC $<TARGET_FILE:protobuf::protoc>)
+    endif()
+
+    # Find gRPC installation
+    # Looks for gRPCConfig.cmake file installed by gRPC's cmake installation.
+    find_package(gRPC CONFIG REQUIRED)
+    message(STATUS "Using gRPC ${gRPC_VERSION}")
+
+    set(_GRPC_GRPCPP gRPC::grpc++)
+    if(CMAKE_CROSSCOMPILING)
+      find_program(_GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin)
+    else()
+      set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:gRPC::grpc_cpp_plugin>)
+    endif()
+  ####################################### Taken from /home/narek/kudu_workspace/AirReplay/grpc/examples/cpp/cmake/common.cmake ###########
+  add_subdirectory(route_guide)
+  add_subdirectory(hello_world)
+endif()
+
 find_package(Protobuf REQUIRED)
+
+
 include_directories(${Protobuf_INCLUDE_DIRS})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
@@ -105,29 +143,30 @@ set(AIRREPLAY_SRCS
   airreplay/socket.cc
   airreplay/mock_socket_traffic.cc
 )
-add_library(airreplay SHARED ${AIRREPLAY_SRCS} ${PERSISTENT_VARS_PROTO_SRCS})
-target_link_libraries(airreplay airreplay_proto)
-
-# These are for backtrace.hpp. Make sure GNU/binutils are installed (apt-get install binutils-dev)
-target_link_libraries(airreplay bfd dl)
 
 if (KUDU_HOME)
+  # currently, airreplay is only buildable in presence of KUDU_HOME
+  # since it depends on some headers for message introspection in AirReplay Utils
+  add_library(airreplay SHARED ${AIRREPLAY_SRCS} ${PERSISTENT_VARS_PROTO_SRCS})
+  target_link_libraries(airreplay airreplay_proto)
+
+  # These are for backtrace.hpp. Make sure GNU/binutils are installed (apt-get install binutils-dev)
+  target_link_libraries(airreplay bfd dl)
   # needed for sparsehash/dense_hash_map, required in schema.h
   target_include_directories(airreplay PUBLIC "${KUDU_HOME}/thirdparty/installed/common/include")
   target_include_directories(airreplay PUBLIC "${KUDU_HOME}/src")
   # aaa this is bad.
   target_include_directories(airreplay PUBLIC "${KUDU_HOME}/build/debug/src")
+else()
+  message(WARNING "KUDU_HOME is not set. AirReplay will not be built")
 endif()
 
-<<<<<<< HEAD
 # EXECUTIBLES mock-socket-replayer
 
-add_executable(socketreplay airreplay/socketreplay_main.cc)
-target_link_libraries(socketreplay airreplay airreplay_proto glog)
+# add_executable(socketreplay airreplay/socketreplay_main.cc)
+# target_link_libraries(socketreplay airreplay airreplay_proto glog)
 
 # TESTS
-=======
->>>>>>> 2599ed9 ([temporary] commit backtrace to allow rebase)
 
 add_executable(serde-test airreplay/serde-test.cc airreplay/gtest_main.cc ${PERSISTENT_VARS_PROTO_SRCS})
 set_target_properties(serde-test PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
@@ -171,6 +210,7 @@ glog
 gflags
 )
 
+if(KUDU_HOME)
 
 set(INSTALL_DIR "${CMAKE_CURRENT_BINARY_DIR}/install")
 set(INSTALL_HEADER_DIR "${INSTALL_DIR}/include/airreplay")
@@ -195,3 +235,5 @@ install(
     TARGETS airreplay
     DESTINATION "${INSTALL_LIB_DIR}"
 )
+
+endif()

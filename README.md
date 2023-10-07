@@ -123,3 +123,28 @@ cmake -DKUDU_HOME=[PATH_TO_KUDU_PROJECT_ROOT_DIR] ...
 ```
  and AirReplay will use the `protobuf` library compiled for kudu.
 
+
+## Building gRPC examples
+
+This allows building simple gRPC benchmarks that can be used to microbenchmark AirReplay overhead across systems
+
+Note: these targets require local installations of grpc and protobuf.
+If those are not installed in the global cmake path, make sure to path the relevant install dir in `CMAKE_PREFIX_PATH` variable as below:
+```
+cmake -DCMAKE_PREFIX_PATH=~/kudu_workspace/AirReplay/grpc/build/install ..
+make -j8
+```
+
+Currently, airreplay shared library will not be built when building grpc examples as currently airreplay shared lib has some hardcoded kudu dependencies
+
+To build and install grpc from source you can use
+```
+git clone --recursive https://github.com/grpc/grpc.git
+cd grpc
+mkdir build && cd build
+cmake -DgRPC_INSTALL=ON -DCMAKE_INSTALL_PREFIX=~/kudu_workspace/AirReplay/grpc/build/install ..
+make -j88
+make install
+```
+
+Note that you may need to run `make install` with sudu as certain compression  libraries in the project do not respect CMAKE_INSTALL_PREFIX and are installed globally.
