@@ -148,3 +148,9 @@ make install
 ```
 
 Note that you may need to run `make install` with sudu as certain compression  libraries in the project do not respect CMAKE_INSTALL_PREFIX and are installed globally.
+
+## Building gRPC examples in freeBSD
+
+1. Install grpc and protobuf from system repositories (`pkg install grpc protobuf`)
+2. Remove "CONFIG" from `findPackage` directives as `pkg install`-ed grpc does not have relevant config files
+3. `mkdir build && cd build && cmake .. && make -j8`

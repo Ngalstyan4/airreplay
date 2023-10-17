@@ -5,7 +5,10 @@
 // row_operations.h
 #define KUDU_HEADERS_USE_RICH_SLICE 1
 
-#include "kudu/common/row.h"
+// forward declare for compareMessages
+namespace kudu {
+class SchemaPB;
+}  // namespace kudu
 namespace airreplay {
 namespace utils {
 const std::string PROTO_COMPARE_FALSE_ALARM = "PROTO_COMPARE_FALSE_ALARM";

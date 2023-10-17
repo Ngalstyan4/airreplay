@@ -6,11 +6,13 @@
 
 #include <cmath>
 
+#ifdef KUDU_HOME
 #include "kudu/common/row.h"
 #include "kudu/common/row_operations.h"
 #include "kudu/common/wire_protocol.h"
 #include "kudu/common/wire_protocol.pb.h"
 #include "kudu/util/slice.h"
+#endif
 
 using namespace google::protobuf;
 
@@ -25,12 +27,14 @@ const kudu::SchemaPB* FindSchemaField(
   for (int i = 0; i < descriptor->field_count(); ++i) {
     const google::protobuf::FieldDescriptor* field = descriptor->field(i);
 
+#ifdef KUDU_HOME
     if (field->name() == "schema") {
       // Found schema field
       const kudu::SchemaPB* schema = dynamic_cast<const kudu::SchemaPB*>(
           &reflection->GetMessage(message, field));
       return schema;
     }
+#endif
     if (field->is_repeated()) {
       int fieldSize = reflection->FieldSize(message, field);
 
@@ -190,7 +194,7 @@ std::string compareMessages(const Message& message1, const Message& message2,
       if (fieldDescriptor->name() != "row_operations") {
         return new_res;
       }
-
+#ifdef KUDU_HOME
       /************************ ROW_OPERATIONS ************************/
 
       // it is possible that binary row_operations are different but the
@@ -241,6 +245,8 @@ std::string compareMessages(const Message& message1, const Message& message2,
       if (op_mismatch) return errorCtx;
       DCHECK(res == "" || res == PROTO_COMPARE_FALSE_ALARM);
       res = PROTO_COMPARE_FALSE_ALARM;
+#endif
+
     } else if (fieldDescriptor->cpp_type() == FieldDescriptor::CPPTYPE_STRING) {
       std::string value1 = reflection1->GetString(message1, fieldDescriptor);
       std::string value2 = reflection2->GetString(message2, fieldDescriptor);

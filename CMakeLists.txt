@@ -144,21 +144,23 @@ set(AIRREPLAY_SRCS
   airreplay/mock_socket_traffic.cc
 )
 
-if (KUDU_HOME)
-  # currently, airreplay is only buildable in presence of KUDU_HOME
-  # since it depends on some headers for message introspection in AirReplay Utils
-  add_library(airreplay SHARED ${AIRREPLAY_SRCS} ${PERSISTENT_VARS_PROTO_SRCS})
-  target_link_libraries(airreplay airreplay_proto)
+add_library(airreplay SHARED ${AIRREPLAY_SRCS} ${PERSISTENT_VARS_PROTO_SRCS})
+target_link_libraries(airreplay airreplay_proto)
+message(WARNING "building airreplay")
 
-  # These are for backtrace.hpp. Make sure GNU/binutils are installed (apt-get install binutils-dev)
-  target_link_libraries(airreplay bfd dl)
+# These are for backtrace.hpp. Make sure GNU/binutils are installed (apt-get install binutils-dev)
+target_link_libraries(airreplay bfd dl)
+
+if (KUDU_HOME)
+  # when used with KUDU, AirReplay needs to look into DB row definition to detect whether or not
+  # there is divergence.
+  # We Add the compile flag so the code includes relevant headers
+  add_compile_definitions(KUDU_HOME)
   # needed for sparsehash/dense_hash_map, required in schema.h
   target_include_directories(airreplay PUBLIC "${KUDU_HOME}/thirdparty/installed/common/include")
   target_include_directories(airreplay PUBLIC "${KUDU_HOME}/src")
   # aaa this is bad.
   target_include_directories(airreplay PUBLIC "${KUDU_HOME}/build/debug/src")
-else()
-  message(WARNING "KUDU_HOME is not set. AirReplay will not be built")
 endif()
 
 # EXECUTIBLES mock-socket-replayer
